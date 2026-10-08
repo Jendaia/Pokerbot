@@ -1,0 +1,2 @@
+"""Calculator result models."""
+

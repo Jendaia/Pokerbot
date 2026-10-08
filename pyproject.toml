@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "texasholdem-calculator"
+version = "0.4.0"
+description = "Texas Hold'em equity calculator, native Pokerist analyzer, and live web dashboard"
+requires-python = ">=3.10"
+readme = "README.md"
+license = {text = "MIT"}
+
+[project.scripts]
+poker-calc = "texasholdem.interfaces.cli:main"
+poker-analyze = "texasholdem.interfaces.analyzer_cli:main"
+poker-dashboard = "texasholdem.interfaces.dashboard_cli:main"
+
+[project.optional-dependencies]
+native = ["numpy>=1.24"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"texasholdem.dashboard" = ["static/*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

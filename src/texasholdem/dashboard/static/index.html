@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c1715">
+  <title>River · Live poker dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="/mark.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <svg class="icon-definitions" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m9 5 10 7-10 7Z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="River home"><img src="/mark.svg" alt="" width="32" height="32"><span>river<span class="brand-dot">.</span></span></a>
+    <span class="nav-label">TABLE INTELLIGENCE</span>
+    <div class="topbar-right"><span class="local-label">LOCAL WORKSPACE</span><span class="connection-pill" id="connection-pill"><i></i><span id="connection-text">Connecting</span></span></div>
+  </header>
+
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow"><span class="tiny-suit">♠</span> <span id="game-type-label">TEXAS HOLD’EM</span> <span class="separator">/</span> <span id="table-label">WAITING FOR A TABLE</span></p><h1>Every hand, in view<span>.</span></h1><p class="intro-copy">Your cards. The action. The odds. All at one table.</p></div>
+      <div class="intro-actions"><button id="pause-button" class="button secondary"><svg class="icon"><use href="#i-pause"/></svg><span>Pause updates</span></button><button id="export-button" class="button secondary" disabled><svg class="icon"><use href="#i-download"/></svg>Export round</button></div>
+    </section>
+
+    <div id="connection-notice" class="notice" role="status">Connecting to your Pokerist table…</div>
+
+    <section class="summary-grid" aria-label="Round summary">
+      <article class="summary"><span class="label">TOTAL POT <span class="subtle-tag">DERIVED</span></span><div class="summary-value"><span class="chip-dot"></span><span id="pot-value">—</span></div><span class="summary-detail" id="pot-detail">Collected pot + street bets</span></article>
+      <article class="summary"><span class="label">AT THE TABLE</span><div class="summary-value"><span id="players-value">—</span><span class="value-unit" id="capacity-value">seats</span></div><span class="summary-detail" id="active-detail">Waiting for players</span></article>
+      <article class="summary"><span class="label">ACTION ON</span><div class="summary-value player-name" id="acting-value">—</div><span class="summary-detail" id="acting-detail">Waiting for the next action</span></article>
+      <article class="summary"><span class="label">YOUR STACK</span><div class="summary-value" id="stack-value">—</div><span class="summary-detail" id="stack-detail">Not seated yet</span></article>
+    </section>
+
+    <div class="workspace">
+      <section class="panel table-panel" aria-labelledby="table-title">
+        <div class="panel-heading"><div class="heading-group"><span class="section-number">01</span><h2 id="table-title">The table</h2></div><span id="mode-badge" class="badge muted">Waiting</span></div>
+        <div class="table-topline"><div class="street-track" id="street-track" aria-label="Current street"><span data-street="pre-flop">Pre-flop</span><b>·</b><span data-street="flop">Flop</span><b>·</b><span data-street="turn">Turn</span><b>·</b><span data-street="river">River</span></div><span id="blinds-label" class="small-text">Small blind —</span></div>
+        <div class="poker-stage" id="poker-stage">
+          <div class="felt"><div class="felt-line"></div><span class="felt-brand">river<span>♠</span></span></div>
+          <div class="board-center"><span class="board-kicker" id="board-label">COMMUNITY CARDS</span><div class="board-cards" id="board-cards"></div><div class="table-pot"><span class="chip-dot"></span><span id="table-pot">Waiting for a hand</span></div></div>
+          <div id="seats-layer" class="seats-layer"></div>
+        </div>
+        <div class="hero-strip"><div class="hero-copy"><span class="label">YOUR HOLE CARDS</span><strong id="hero-hand-label">Waiting for a table</strong><span id="hero-hand-detail" class="small-text">Your hand will appear here when dealt.</span></div><div id="hero-cards" class="hero-cards"></div></div>
+        <details class="player-details"><summary>Player details <svg class="icon"><use href="#i-chevron"/></svg></summary><div class="player-table-wrap"><table class="player-table"><thead><tr><th>Player / seat</th><th>Stack</th><th>Bet</th><th>Status</th></tr></thead><tbody id="player-rows"></tbody></table></div></details>
+      </section>
+
+      <section class="panel odds-panel" aria-labelledby="odds-title">
+        <div class="panel-heading"><div class="heading-group"><span class="section-number">02</span><h2 id="odds-title">Your odds</h2></div><span id="analysis-badge" class="badge muted">Waiting</span></div>
+        <div class="segmented" role="tablist" aria-label="Calculation source"><button id="live-tab" role="tab" aria-selected="true">Live hand</button><button id="scenario-tab" role="tab" aria-selected="false">What if <span>↗</span></button></div>
+        <form id="scenario-form" class="scenario-form" hidden>
+          <div class="scenario-intro"><span class="scenario-dot"></span>A separate hand to explore. Your live table stays visible.</div>
+          <div class="form-row"><label>Your cards<input name="hero" id="scenario-hero" placeholder="As Kh" autocomplete="off" spellcheck="false" required maxlength="30"></label><label class="opponents-field">Opponents<input name="opponents" id="scenario-opponents" type="number" min="1" max="9" value="1" required></label></div>
+          <label>Community cards <span class="optional">optional before the flop</span><input name="board" id="scenario-board" placeholder="Qs Jh 2c" autocomplete="off" spellcheck="false" maxlength="60"></label>
+          <div class="scenario-actions"><button class="button primary" type="submit" id="calculate-button">Calculate odds<svg class="icon"><use href="#i-arrow"/></svg></button><button type="button" class="text-button" id="example-button">Load example</button></div>
+          <p id="scenario-error" class="form-error" role="alert" hidden></p>
+        </form>
+        <div id="analysis-message" class="analysis-message"><span class="message-suit">♠</span><strong id="analysis-message-title">Waiting for your hand</strong><p id="analysis-message-copy">Join a table to see your live probabilities, or explore a hand in What if.</p><button id="try-scenario-button" class="text-button">Explore a hand <span>↗</span></button></div>
+        <div id="analysis-results" hidden>
+          <div id="scenario-card-preview" class="scenario-card-preview" hidden></div>
+          <div class="equity-overview"><div class="equity-ring" id="equity-ring"><div><strong id="equity-value">—</strong><span>POT EQUITY</span></div></div><div class="equity-copy"><span class="label">YOUR SHARE OF THE POT</span><h3 id="current-hand">—</h3><p id="equity-explanation">Includes your share of tied pots.</p></div></div>
+          <div class="probabilities"><div><span><i class="legend-dot win"></i>Win</span><strong id="win-value">—</strong></div><div><span><i class="legend-dot tie"></i>Tie</span><strong id="tie-value">—</strong></div><div><span><i class="legend-dot loss"></i>Lose</span><strong id="loss-value">—</strong></div></div>
+          <div class="outcome-bar" aria-label="Win, tie and loss probabilities"><span id="win-bar"></span><span id="tie-bar"></span><span id="loss-bar"></span></div>
+          <div class="calculation-info"><div><span class="small-text" id="method-label">Estimated showdown odds</span><strong id="trial-value">—</strong></div><p id="confidence-label">—</p></div>
+          <div class="odds-detail"><span>Possible complete deals</span><strong id="deals-value">—</strong></div><div class="odds-detail"><span>Remaining board combinations</span><strong id="runouts-value">—</strong></div>
+          <div id="call-detail" class="call-detail" hidden><div><span>To call</span><strong id="call-value">—</strong></div><div><span>Call / (pot + call)</span><strong id="pot-odds-value">—</strong></div><p>Simple pot ratio; side pots are not modeled.</p></div>
+        </div>
+        <div class="model-note"><svg class="icon"><use href="#i-info"/></svg><p>Showdown odds against uniformly random legal opponent hands. Assumes opponents stay in the hand; excludes side-pot eligibility.</p></div>
+      </section>
+
+      <section class="panel distribution-panel" aria-labelledby="distribution-title"><div class="panel-heading"><div class="heading-group"><span class="section-number">03</span><h2 id="distribution-title">What your hand can become</h2></div><span id="distribution-source" class="badge muted">Live hand</span></div><p class="panel-description" id="distribution-description">Final five-card hand probabilities, across every possible board runout.</p><div id="hand-categories" class="hand-categories"></div><div class="distribution-footer"><span id="distribution-method">Waiting for a personal hand</span><span>Straight flush includes royal flush</span></div></section>
+
+      <section class="panel activity-panel" aria-labelledby="activity-title"><div class="panel-heading"><div class="heading-group"><span class="section-number">04</span><h2 id="activity-title">Around the table</h2></div><span class="small-text">Observed updates</span></div><div class="activity-list" id="activity-list"><p class="activity-empty">The action will appear here as the table changes.</p></div></section>
+    </div>
+
+    <footer><span><span class="footer-dot"></span><span id="updated-at">Waiting for a live observation</span></span><span>Made for a better view of the game <span class="footer-suit">♠</span></span></footer>
+  </main>
+</body>
+</html>
