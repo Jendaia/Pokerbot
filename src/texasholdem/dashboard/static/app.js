@@ -342,15 +342,28 @@ function renderBot(bot) {
   $("bot-start").disabled = bot.enabled || ui.botBusy;
   $("bot-stop").disabled = false;
   $("bot-message").textContent = bot.message;
-  $("bot-strategy").textContent = bot.strategy.toUpperCase();
+  const methodNames = {"river-cfr+": "River CFR+ · mixed strategy", "multi-street-rollout": "Multi-street search · experimental", "rollout-v1": "Original range rollout", "ledger-guard": "Waiting for hand history"};
+  $("bot-strategy").textContent = (methodNames[bot.decision?.method] || bot.strategy).toUpperCase();
   $("bot-reason").textContent = bot.decision?.reason || "Choose autoplay or take an action yourself when it’s your turn.";
+  const decision = bot.decision;
+  const diagnostic = decision?.diagnostics || {};
+  $("bot-search-detail").textContent = !decision ? "" : [
+    `Range equity ${(decision.equity * 100).toFixed(1)}%`,
+    `Call price ${(decision.pot_odds * 100).toFixed(1)}%`,
+    `${decision.elapsed_seconds.toFixed(2)}s`,
+    diagnostic.nash_conv_chips == null ? "" : `Restricted river gap: ${money(diagnostic.nash_conv_chips.toFixed(2))} chips`,
+    diagnostic.model_spread_chips == null ? "" : `Opponent-model spread: ${money(Math.round(diagnostic.model_spread_chips))} chips`,
+  ].filter(Boolean).join(" · ");
+  $("bot-search-detail").title = diagnostic.limitations || "";
   $("bot-hands").textContent = bot.session.hands;
   $("bot-action-count").textContent = bot.session.actions;
   $("bot-net").textContent = bot.session.net_chips == null ? "—" : `${bot.session.net_chips > 0 ? "+" : ""}${money(bot.session.net_chips)}`;
   $("bot-candidates").replaceChildren(...(bot.decision?.candidates || []).map((candidate) => {
-    const item = node("span", "candidate", `${candidate.action}${candidate.amount ? ` ${money(candidate.amount)}` : ""} · EV ${money(Math.round(candidate.ev_chips))}`);
+    const mix = candidate.probability == null ? "" : ` · ${(candidate.probability * 100).toFixed(1)}%`;
+    const item = node("span", "candidate", `${candidate.action}${candidate.amount ? ` ${money(candidate.amount)}` : ""}${mix} · EV ${money(Math.round(candidate.ev_chips))}`);
+    item.style.setProperty("--mix", `${Math.min(100, Math.max(0, (candidate.probability || 0) * 100))}%`);
     item.classList.toggle("selected", candidate.action === bot.decision.action.kind && candidate.amount === bot.decision.action.amount);
-    item.title = `Simulation standard error: ${money(candidate.standard_error)} chips`;
+    item.title = candidate.standard_error == null ? "Action frequency and value against the solver’s average strategy; restricted river tree and estimated ranges" : `Simulation standard error: ${money(candidate.standard_error)} chips; does not include model error`;
     return item;
   }));
   const controls = bot.controls;
@@ -382,6 +395,7 @@ function renderBot(bot) {
     $("bot-hand-limit").value = settings.max_hands;
     $("bot-think-time").value = settings.think_seconds;
     $("bot-samples").value = settings.samples;
+    $("bot-policy").value = settings.strategy || "hybrid";
     ui.botSettingsLoaded = true;
   }
   $("bot-history").replaceChildren(...bot.history.map((entry) => {
@@ -418,7 +432,7 @@ async function botRequest(path, body) {
 
 $("bot-start").addEventListener("click", () => {
   if (!$("bot-settings-form").reportValidity()) return;
-  botRequest("start", {expected_generation: ui.bot?.generation, max_action_chips: Number($("bot-max-action").value), stop_loss_chips: Number($("bot-loss-limit").value), max_hands: Number($("bot-hand-limit").value), think_seconds: Number($("bot-think-time").value), samples: Number($("bot-samples").value)});
+  botRequest("start", {expected_generation: ui.bot?.generation, strategy: $("bot-policy").value, max_action_chips: Number($("bot-max-action").value), stop_loss_chips: Number($("bot-loss-limit").value), max_hands: Number($("bot-hand-limit").value), think_seconds: Number($("bot-think-time").value), samples: Number($("bot-samples").value)});
 });
 $("bot-stop").addEventListener("click", () => botRequest("stop", {}));
 document.querySelectorAll("[data-poker-action]").forEach((button) => button.addEventListener("click", () => {

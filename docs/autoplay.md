@@ -7,55 +7,86 @@ The current adapter was tested against Unity 6000.0.75f1 / IL2CPP metadata v31,
 using the windowed 2D layout. Other client versions, native Windows, Wayland,
 and the 3D UI require adapter validation.
 
-## Modules
+## Strategy and modules
 
-`agents/models.py` defines settings, actions, decisions, and the turn identity.
-`agents/opponents.py` maintains smoothed public-action statistics, range
-likelihoods, and a per-hand chip ledger. `agents/pots.py` distributes main and
-side pots, tied payouts, and uncalled excess chips. `agents/policy.py` implements
-bounded action-value rollouts. `agents/controller.py` owns the decision/input
-worker, cancellation, limits, action acknowledgment, and local audit records.
+`agents/strategy.py` routes the default hybrid policy. The original
+`agents/policy.py` rollout remains available with settings `strategy="rollout"`;
+`strategy="hybrid"` is the default: CFR+ on heads-up rivers, original rollout
+elsewhere. `strategy="search"` opts into experimental multi-street search outside
+the heads-up river solver. The larger search has not cleared the performance gate. The dashboard lets you choose either before
+starting a session.
 
-`analyzers/native/controls.py` resolves live control models and their UI layout.
-`adapters/pokerist.py` prepares, dismisses, selects, and confirms game controls.
-`adapters/x11.py` sends ordinary XTest mouse events to a process-verified Pokerist
-window and accounts for Proton borders and viewport scaling.
+- `search/river.py`: alternating vector-form CFR+, positive cumulative regrets,
+  linear strategy averaging, separate regrets for every board-legal holding,
+  mixed action selection, and exact best responses inside the restricted tree.
+- `search/ranges.py`: board-specific public action likelihoods, draw features,
+  smoothed opponent profiles, a uniform uncertainty component, exact river
+  blocker arithmetic, and whole-deal rejection sampling of joint holdings.
+- `search/betting.py`: public no-limit continuation state; clockwise action,
+  street transitions, big-blind option, full raises and short all-ins.
+- `search/rollout.py`: preflop/flop/turn and multiway search through subsequent
+  betting streets, including counter-raises. Candidate actions share sampled
+  deals and rollout features. Paired differences reduce comparison variance.
+- `agents/opponents.py`: observed action events (including hero actions), the
+  board/price when each action happened, public statistics, and chip ledger.
+- `agents/pots.py`: main/side pots, split payouts and uncalled chips.
+- `agents/benchmark.py`: offline convergence and paired arena evaluations.
+- `agents/controller.py`: execution, cancellation, limits and acknowledgments.
 
-The calculator and read-only CLI still work without input libraries. NumPy is
-the only Python dependency for native gameplay. `x11-utils`, `libx11-6`, and
-`libxtst6` are system dependencies for the input adapter.
+### Heads-up river
 
-## Decision model
+When exactly two players remain and contributions are known, the solver uses
+all 1,081 combinations compatible with the five board cards for each player's
+public range. The hero's actual cards select the final strategy row; they are
+not revealed to the opponent's strategy. Terminal values remove incompatible
+card pairs exactly. Folded contributions remain in pot accounting.
 
-For each turn, the policy samples opponent holdings with card removal and range
-weights derived from observed calls/raises. Preflop uses a rank/pair/suitedness/
-connectivity prior; postflop uses made-hand percentiles among legal holdings.
-Future boards are drawn uniformly from the remaining cards. These holdings are
-hypotheses; hidden opponent cards are never read.
+The root uses native legal buttons and selectable amounts. Later nodes use
+half-pot, pot and all-in sizes, with at most two further raises on this street.
+The hero's chip-per-move limit also restricts continuation actions. These limits
+change the game being solved; a low cap can be strategically exploitable.
+The selected action is sampled from the average strategy, rather than always
+choosing its largest component. The UI percentages are **action frequencies**.
 
-Candidate moves share sampled deals and response random numbers to reduce the
-variance of comparisons. A smoothed opponent model estimates whether a player
-will match a bet at a given price. Each candidate subtracts the hero's additional
-cost from a simulated payout, with folded contributions and all-in caps included.
-The ranking uses estimated chip EV minus one simulation standard error; raises
-also reserve value for omitted counter-raises/equity realization before the river.
-Fold has zero incremental EV, and checking costs no chips. Native minimum,
-roughly one-third/two-thirds/pot sizes, and a capped all-in are considered where
-available. Chip-per-action limits restrict voluntary calls and raises.
+`nash_conv_chips` is the sum of both players' unilateral best-response gains
+against the average profile, calculated exactly for the supplied ranges and
+restricted river tree. It is not an estimate of full-game exploitability, a
+confidence interval, a profit promise, or a safe-resolving guarantee. No blueprint
+counterfactual values are available, so this is not safe continual resolving.
 
-Simulations check down future streets. They do not solve equilibrium, search
-complete future betting trees, model rake, use ICM, or learn a neural policy.
-Weighted holdings are sampled sequentially with collision rejection; this is
-an approximate multi-opponent range model, not a calibrated joint posterior.
-Made-hand percentile likelihoods also underestimate some drawing hands. Sample
-standard errors describe simulation noise, not opponent-model uncertainty.
+### Experimental multi-street search (`strategy="search"`)
 
-Joining in the middle of a hand leaves past contributions uncertain. The policy
-uses only check/fold until it observes a complete preflop chip ledger. The ledger
-handles final calls moving immediately into the next street's collected pot;
-unexplained discrepancies make the hand incomplete. The displayed general
-calculator percentages remain uniform-opponent showdown odds; they are separate
-from the policy's range equity and action-value estimates.
+The default continues using the original check-down rollout outside heads-up
+rivers. The following describes the opt-in experimental continuation engine.
+
+Unknown hands are drawn from the product of estimated ranges, conditioned on
+card removal by rejecting the entire conflicting deal. The simulator plays out
+future streets, checks, bets, calls, folds and counter-raises. Each simulated
+actor sees only its own holding and the currently exposed board. Its cheap
+uniform-opponent equity feature samples independent runouts; it never peeks at
+the episode's actual future board or another player's sampled private cards.
+
+Continuation play is a heuristic model, tested under three nearby population
+strength assumptions. Actions use paired value differences against the passive
+choice with a simulation-noise margin. `model_spread_chips` shows sensitivity to
+those assumptions; it does not bound model error. Fewer than 24 completed deals
+uses check/fold. No neural policy, trained blueprint, equilibrium claim, rake or
+ICM model is involved. Full nonlinear joint beliefs from poker self-play are
+not available.
+
+### History and incomplete observations
+
+Polling does not recover a complete server hand history. The tracker infers
+unambiguous actions, includes final calls/checks at street transitions, and
+records the board at the time, so a river improvement cannot explain an earlier
+flop raise. Hero actions also condition the hero's public range. Missed actions
+remain a source of range error. Likelihoods are deliberately softened instead
+of excluding every hand that looks unlikely under a heuristic.
+
+Attaching after chips enter the collected pot leaves the contribution ledger
+incomplete. The policy checks/folds until the next complete hand. Unexplained
+ledger discrepancies also disable spending for that hand. The dashboard's
+separate general calculator still uses uniform opponents and showdown odds.
 
 ## Input and session behavior
 
@@ -87,27 +118,18 @@ store flow is automated. Manual moves pause autoplay and bypass its spending
 limits because their amount is chosen directly by the operator.
 
 Audit records are local JSON Lines in `exports/autoplay/`, containing the
-public table observation, hero/board, candidates, selected action, and input
-result. Submission and acknowledgment/failure are separate events with matching
+public table observation, inferred public action history, hero/board, candidates,
+solver diagnostics, selected action, and input result. Submission and acknowledgment/failure are separate events with matching
 action and session IDs, so interrupted sessions still retain sent actions.
 They are ignored by Git. Public opponent statistics are session-local; no
 persistent trained checkpoint or account credentials are stored.
 
 ## Research and performance claims
 
-Strong multiplayer poker research combines self-play with a learned blueprint
-and search, as described in the primary [Pluribus paper](https://noambrown.github.io/papers/19-Science-Superhuman.pdf).
-[ReBeL](https://arxiv.org/abs/2007.13544) combines reinforcement learning and
-search with theoretical results for two-player zero-sum games and demonstrated
-heads-up poker performance. This project implements neither trained system.
-It provides a replaceable `decide(frame, tracker, settings, cancelled)` policy
-interface and an execution/data layer for future learning and evaluation.
-
-There is no measured win rate, exploitability result, or state-of-the-art claim.
-Correct arithmetic and successful GUI actions do not demonstrate playing
-strength. A serious evaluation needs reproducible opponent pools, seat-balanced
-matches, enough hands for confidence intervals, and comparison with strong
-policies under the same stacks, blinds, rules, and compute budgets.
+See [the research assessment and reproducible measurements](strategy_research.md).
+The upgrade implements specific research algorithms and their diagnostics;
+it does not bundle the original Pluribus, ReBeL, or third-party trained models.
+The `decide(frame, tracker, settings, cancelled)` interface remains replaceable.
 
 ## Validation
 
@@ -117,7 +139,9 @@ policies under the same stacks, blinds, rules, and compute budgets.
 .venv/bin/python scripts/validate_bot_dashboard.py
 ```
 
-Unit checks cover main/side pots, tied and uncalled chips, known river outcomes,
+Unit checks additionally compare blocker sweeps to independent enumeration, verify
+river best-response convergence and constant-sum payoffs, exercise random betting
+continuations at 2/3/6/9 seats, and check board-conditioned history. They cover main/side pots, tied and uncalled chips, known river outcomes,
 action caps, incomplete histories, street transitions, stale turns, Stop during
 planning/native reads, duplicate-action prevention, call acknowledgment, native
 UI wrapper traversal, visibility, deferred toggles, and viewport scaling.

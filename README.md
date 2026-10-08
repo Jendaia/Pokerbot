@@ -38,8 +38,9 @@ remains visible. Scenario results are labeled and never alter game state.
 ## Autonomous play and game controls
 
 Enter a Pokerist Texas Hold'em table and take a seat. In **Your copilot**, click
-**Start autoplay**. The bot observes opponents, samples legal holdings and board
-runouts, evaluates fold/check/call/raise choices, and submits its selected move.
+**Start autoplay**. The default hybrid strategy solves heads-up rivers with
+CFR+ and keeps the original range rollout on other streets. An experimental
+multi-street search option simulates later betting and counter-raises. It submits its selected fold/check/call/raise through the game.
 **Stop** cancels pending planning and future clicks. Manual Fold, Check, Call,
 and Raise controls pause autoplay and apply only to the displayed live turn.
 Open Raise to read the game's minimum, maximum, and available bet steps; the
@@ -51,7 +52,7 @@ entered amount is **additional chips**, not the total street wager.
 ```
 
 Session settings include chips per move, a loss limit, a hand limit, compute
-time, and sample count. Defaults are 1,000 chips per move, a 2,000-chip loss
+time, strategy selection, and sample/iteration count. Defaults are 1,000 chips per move, a 2,000-chip loss
 limit, 100 hands, up to two seconds and 3,000 samples per decision. A table
 change or lost live connection stops the session. Seat/buy-in and rebuy remain
 under your control. Decisions and confirmed actions are saved locally to
@@ -64,11 +65,22 @@ Input requires the Linux Steam/Proton client running on X11, `xwininfo`, `xprop`
 sudo apt install x11-utils libx11-6 libxtst6
 ```
 
-This is an experimental **range-weighted rollout policy**, with public-action
-opponent modeling, main/side-pot payouts, native bet sizing, and stale-turn
-protection. It is not a trained Pluribus/ReBeL model or a benchmarked
-state-of-the-art player. Future streets check down in its simulations, and
-opponent response estimates are heuristic. See [bot design and validation](docs/autoplay.md).
+The dashboard shows **mixed action frequencies**, action values, range equity,
+and a convergence diagnostic for the restricted river subgame. Both the original
+rollout and experimental multi-street search remain selectable for comparison. Installation needs no trained-model
+download, GPU, or API key; `requirements.txt` includes the solver dependency.
+
+Playing strength is experimental. This is not a trained Pluribus/ReBeL model
+or a proven state-of-the-art player. Ranges and continuation responses are
+estimated, and the river solver restricts bet sizes and raise depth. See
+[research and evaluation](docs/strategy_research.md) and [bot design](docs/autoplay.md).
+
+Run offline checks without connecting to Pokerist:
+
+```bash
+.venv/bin/poker-benchmark river --iterations 400 --output artifacts/river.json
+.venv/bin/poker-benchmark arena --players 6 --hands 120 --output artifacts/arena.json
+```
 
 Pause/resume updates, expand player details, and export the current observation
 as JSON. The layout works on desktop and mobile. The server reconnects if the
@@ -251,7 +263,8 @@ Public helpers also include `evaluate`, `evaluate_five`, `best_five`, `showdown`
 src/texasholdem/
 ├── core/          # cards, immutable game state, rankings, showdown
 ├── calculators/   # counting, enumeration, sampling, equity, distributions
-├── agents/        # action-value policy, public opponent model, pots, controller
+├── agents/        # hybrid policy, history, pots, controller, offline benchmark
+│   └── search/    # betting engine, ranges, CFR+ river solver, future-street rollouts
 ├── adapters/      # validated Pokerist actions and X11 mouse input
 ├── analyzers/
 │   └── native/    # process, metadata, runtime, collections, table reader

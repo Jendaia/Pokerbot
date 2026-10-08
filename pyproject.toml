@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "texasholdem-calculator"
-version = "0.5.0"
+version = "0.6.0"
 description = "Texas Hold'em calculator, native Pokerist dashboard, and autonomous play controller"
 requires-python = ">=3.10"
 readme = "README.md"
@@ -14,6 +14,7 @@ license = {text = "MIT"}
 poker-calc = "texasholdem.interfaces.cli:main"
 poker-analyze = "texasholdem.interfaces.analyzer_cli:main"
 poker-dashboard = "texasholdem.interfaces.dashboard_cli:main"
+poker-benchmark = "texasholdem.agents.benchmark:main"
 
 [project.optional-dependencies]
 native = ["numpy>=1.24"]

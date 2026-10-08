@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from math import isfinite
 
 from ..models.observation import TableObservation
@@ -13,12 +13,15 @@ class BotSettings:
     max_action_chips: int = 1000
     stop_loss_chips: int = 2000
     max_hands: int = 100
+    strategy: str = "hybrid"
 
     @classmethod
     def from_dict(cls, data: dict) -> "BotSettings":
         if not isinstance(data, dict) or set(data) - set(cls.__dataclass_fields__):
             raise ValueError("Unknown bot setting")
         settings = cls(**data)
+        if settings.strategy not in ("hybrid", "search", "rollout"):
+            raise ValueError("strategy must be hybrid, search, or rollout")
         for name, lower, upper in (("samples", 200, 20000), ("max_action_chips", 1, 10**9),
                                    ("stop_loss_chips", 1, 10**9), ("max_hands", 1, 10000)):
             value = getattr(settings, name)
@@ -60,6 +63,8 @@ class Decision:
     samples: int
     elapsed_seconds: float
     candidates: tuple[dict, ...]
+    method: str = "rollout-v1"
+    diagnostics: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return asdict(self)

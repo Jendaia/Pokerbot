@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import asdict
 from copy import deepcopy
 from datetime import datetime, timezone
 from hashlib import sha256
@@ -15,7 +16,7 @@ from ..analyzers.native import PokeristReader
 from ..analyzers.native.controls import PokeristControls
 from .models import Action, BotSettings
 from .opponents import HandTracker
-from .policy import RolloutPolicy
+from .strategy import HybridPolicy
 
 
 def turn_token(frame) -> str:
@@ -29,7 +30,7 @@ class BotController:
                  input_factory=PokeristInput, policy=None, audit_dir: Path | None = None):
         self.reader_factory = reader_factory or (lambda: PokeristReader(pid, table_id=table_id))
         self.controls_factory, self.input_factory = controls_factory, input_factory
-        self.policy = policy or RolloutPolicy()
+        self.policy = policy or HybridPolicy()
         self.audit_dir = audit_dir
         self.lock = threading.RLock()
         self.stopped = threading.Event()
@@ -133,13 +134,14 @@ class BotController:
         with self.lock:
             return self.stopped.is_set() or generation != self.generation
 
-    def _record(self, frame, action, decision, result):
+    def _record(self, frame, action, decision, result, tracker=None):
         entry = {"id": uuid4().hex, "session_id": self.session_id,
                  "at": datetime.now(timezone.utc).isoformat(), "table_id": frame.observation.table_id,
                  "hand_number": frame.hand_number, "hero_cards": [c.code for c in frame.observation.hero_cards],
                  "board": [c.code for c in frame.observation.board], "pot": frame.observation.pot_total,
                  "action": action.as_dict(), "decision": decision.as_dict() if decision else None,
-                 "input": result, "acknowledged": False, "observation": frame.observation.as_dict()}
+                 "input": result, "acknowledged": False, "observation": frame.observation.as_dict(),
+                 "public_history": [asdict(event) for event in tracker.public_actions] if tracker else []}
         with self.lock:
             self.history.appendleft(entry)
             self.actions += 1
@@ -286,7 +288,7 @@ class BotController:
                     self._status("acting", f"Submitting {action.kind}" + (f" · {action.amount:,} chips" if action.amount else ""))
                     result = adapter.perform(action, frame, cancelled)
                     submitted.append(frame.key)
-                    entry = self._record(frame, action, decision, result)
+                    entry = self._record(frame, action, decision, result, tracker)
                     pending = (frame, action, entry, time.monotonic())
                     self._status("waiting_ack", "Mouse input sent · waiting for Pokerist to confirm")
                 except ActionCancelled:

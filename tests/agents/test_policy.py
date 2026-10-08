@@ -65,6 +65,7 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(pot_payout(contributions, ranks, 2), 400)
         self.assertEqual(pot_payout({1: 500, 2: 100}, {1: (0, 2), 2: (8, 14)}, 1), 400)
         self.assertEqual(pot_payout({1: 100, 2: 100}, {1: (8, 14), 2: (8, 14)}, 1), 100)
+        self.assertEqual(pot_payout({1: 300, 2: 100}, {2: (1, 14)}, 1), 200)
 
     def test_tracker_accounts_for_final_call_during_street_transition(self):
         f = frame(board=(), hero_cards=cards("As Kh"))

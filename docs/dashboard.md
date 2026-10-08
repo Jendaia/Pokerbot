@@ -66,6 +66,15 @@ use amount zero; raise uses a positive integer additional-chip amount. Manual
 requests pause autoplay and are rejected if the displayed turn is stale.
 See [autoplay](autoplay.md) for the controller and strategy model.
 
+Bot settings accept `strategy`: `hybrid` (default; heads-up river CFR+ and the
+original rollout elsewhere), `rollout` (original baseline), or `search`
+(experimental multi-street continuation search). Decisions include `method`
+and `diagnostics`; candidates may include a mixed-strategy `probability`.
+These action frequencies are separate from showdown winning probabilities.
+The river solver sets simulation `standard_error` to `null` and reports
+`nash_conv_chips` for its restricted subgame and estimated ranges. It is not
+full-game exploitability. All diagnostics are also included in local audit logs.
+
 `POST /api/analyze` accepts a separate scenario:
 
 ```json

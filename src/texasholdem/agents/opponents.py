@@ -31,11 +31,24 @@ class OpponentProfile:
                 "checks": self.checks, "looseness": self.looseness, "aggression": self.aggression}
 
 
+@dataclass(frozen=True, slots=True)
+class PublicAction:
+    player_id: int
+    action: str
+    street: str
+    board: tuple[str, ...]
+    amount: float
+    facing: float
+    pot: float
+    position: float
+
+
 @dataclass(slots=True)
 class HandTracker:
     """Infer public actions and track committed chips across betting streets.
 
-    We never infer an action across missing hands or a street transition.
+    Actions are not inferred across missing hands. At a street transition,
+    only the previous actor's observable closing call/check/fold is recorded.
     Attaching after bets have entered the collected pot is deliberately marked
     incomplete: the policy can check/fold until a new preflop is observed.
     """
@@ -47,6 +60,7 @@ class HandTracker:
     ledger_complete: bool = False
     hands: int = 0
     last_raise: float = 0
+    public_actions: list[PublicAction] = field(default_factory=list)
 
     def observe(self, observation: TableObservation, hand_number: int) -> None:
         old = self.previous
@@ -57,6 +71,7 @@ class HandTracker:
             new = True
         if new:
             self.evidence = {}
+            self.public_actions = []
             self.committed = {p.id: 0. for p in observation.players}
             self.ledger_complete = observation.game_in_progress and observation.collected_pot == 0
             self.last_raise = observation.small_blind * 2
@@ -69,11 +84,19 @@ class HandTracker:
                     current = after.get(p.id)
                     final_call = max(0, p.stack - current.stack - current.bet) if current else 0
                     self.committed[p.id] = self.committed.get(p.id, 0) + p.bet + final_call
+                    if current and old.acting_player_id == p.id:
+                        if current.folded and not p.folded:
+                            self._record(old, p, "fold", 0)
+                        elif final_call > 0:
+                            self._record(old, p, "call", final_call)
+                        elif p.stack > 0 and not p.folded and p.bet == max(q.bet for q in old.players):
+                            self._record(old, p, "check", 0)
+                self.last_raise = observation.small_blind * 2
             else:
                 max_before = max((p.bet for p in old.players), default=0)
                 for p in observation.players:
                     prev = before.get(p.id)
-                    if prev is None or p.id == observation.hero_id or not p.playing:
+                    if prev is None or not (p.playing or prev.playing):
                         continue
                     action = None
                     if p.folded and not prev.folded:
@@ -84,21 +107,34 @@ class HandTracker:
                         action = "raise" if p.bet > max_before else "call"
                         if action == "raise":
                             self.last_raise = max(self.last_raise, p.bet - max_before)
-                    elif old.acting_player_id == p.id and observation.acting_player_id != p.id and not p.folded and p.stack > 0:
+                    elif old.acting_player_id == p.id and observation.acting_player_id != p.id and not p.folded and p.stack > 0 and prev.bet == max_before:
                         action = "check"
                     if action:
-                        profile = self.profiles.setdefault(p.id, OpponentProfile())
-                        profile.actions += 1
-                        attr = {"fold": "folds", "raise": "raises", "call": "calls", "check": "checks"}[action]
-                        setattr(profile, attr, getattr(profile, attr) + 1)
-                        price = max(0, p.bet - prev.bet) / max(1, old.pot_total + max(0, p.bet - prev.bet))
-                        if action in ("raise", "call"):
-                            self.evidence.setdefault(p.id, []).append((action, observation.street, price))
+                        self._record(old, prev, action, max(0, p.bet - prev.bet))
             total = sum(self.committed.values())
             if abs(total - observation.collected_pot) > .01:
                 # Uncalled-bet returns or a missed street make the ledger uncertain.
                 self.ledger_complete = False
         self.previous, self.hand_number = observation, hand_number
+
+    def _record(self, observation, player, action, amount):
+        active = sorted((p for p in observation.players if p.playing and not p.folded), key=lambda p: p.seat)
+        after_button = sorted(active, key=lambda p: (p.seat - (observation.dealer_seat or 0) - 1) % 10)
+        position = next((i for i, p in enumerate(after_button) if p.id == player.id), 0) / max(1, len(active) - 1)
+        facing = max(0, max(p.bet for p in observation.players) - player.bet)
+        self.public_actions.append(PublicAction(player.id, action, observation.street,
+                                  tuple(c.code for c in observation.board if c.code), amount,
+                                  facing, observation.pot_total, position))
+        # Hero history conditions the hero's public range too. Personal cards
+        # are never an input to an opponent's simulated strategy.
+        price = amount / max(1, observation.pot_total + amount)
+        if action in ("raise", "call"):
+            self.evidence.setdefault(player.id, []).append((action, observation.street, price))
+        if player.id != observation.hero_id:
+            profile = self.profiles.setdefault(player.id, OpponentProfile())
+            profile.actions += 1
+            attr = {"fold": "folds", "raise": "raises", "call": "calls", "check": "checks"}[action]
+            setattr(profile, attr, getattr(profile, attr) + 1)
 
     def contributions(self, observation: TableObservation) -> dict[int, float]:
         result = dict(self.committed)

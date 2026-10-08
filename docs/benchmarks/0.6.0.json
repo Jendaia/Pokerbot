@@ -1,0 +1,208 @@
+{
+  "version": "0.6.0",
+  "research_date": "2026-10-08",
+  "python": "3.13.11",
+  "numpy": "2.5.3",
+  "agent_source_sha256": "5db590b4a0bd467ee2bc54545e9c22ef783c4a0e4f4dfee7869b6abeb67987df",
+  "river": {
+    "benchmark": "restricted-river-convergence",
+    "version": 1,
+    "results": [
+      {
+        "board": "Ks 7c 4d 2h 9s",
+        "facing": 0,
+        "initial_gap_chips": 397.19240415668577,
+        "nash_conv_chips": 0.37654296860017666,
+        "profile_values": [
+          63.8930724451054,
+          136.10692755489455
+        ],
+        "best_response_values": [
+          64.0972731055577,
+          136.27926986304243
+        ],
+        "iterations": 400,
+        "nodes": 34,
+        "seconds": 3.0629138720032643,
+        "utility_accounting_error": -5.684341886080802e-14
+      },
+      {
+        "board": "Ks 7c 4d 2h 9s",
+        "facing": 100,
+        "initial_gap_chips": 353.05519277407853,
+        "nash_conv_chips": 0.14232731326012527,
+        "profile_values": [
+          81.95882719460005,
+          218.04117280539987
+        ],
+        "best_response_values": [
+          82.03602299983903,
+          218.10630431342096
+        ],
+        "iterations": 400,
+        "nodes": 14,
+        "seconds": 1.3287707089984906,
+        "utility_accounting_error": -1.1368683772161603e-13
+      },
+      {
+        "board": "Qh Jh Th 2c 6d",
+        "facing": 0,
+        "initial_gap_chips": 393.2517938126762,
+        "nash_conv_chips": 0.37986580237077305,
+        "profile_values": [
+          63.573642384696036,
+          136.42635761530406
+        ],
+        "best_response_values": [
+          63.79071687089146,
+          136.5891489314794
+        ],
+        "iterations": 400,
+        "nodes": 34,
+        "seconds": 3.2071664260001853,
+        "utility_accounting_error": 8.526512829121202e-14
+      },
+      {
+        "board": "Qh Jh Th 2c 6d",
+        "facing": 100,
+        "initial_gap_chips": 350.58977587442223,
+        "nash_conv_chips": 0.17441545901760946,
+        "profile_values": [
+          83.80939279840253,
+          216.1906072015975
+        ],
+        "best_response_values": [
+          83.88964822701723,
+          216.28476723200038
+        ],
+        "iterations": 400,
+        "nodes": 14,
+        "seconds": 1.3642630109970924,
+        "utility_accounting_error": 0.0
+      },
+      {
+        "board": "As Ad 8c 7h 2s",
+        "facing": 0,
+        "initial_gap_chips": 399.3610871515277,
+        "nash_conv_chips": 0.44454033075788857,
+        "profile_values": [
+          62.72178377612999,
+          137.27821622387
+        ],
+        "best_response_values": [
+          63.005718235083144,
+          137.43882209567474
+        ],
+        "iterations": 400,
+        "nodes": 34,
+        "seconds": 3.025576441003068,
+        "utility_accounting_error": 0.0
+      },
+      {
+        "board": "As Ad 8c 7h 2s",
+        "facing": 100,
+        "initial_gap_chips": 353.6993249185605,
+        "nash_conv_chips": 0.21942987667898706,
+        "profile_values": [
+          81.57714355316618,
+          218.42285644683383
+        ],
+        "best_response_values": [
+          81.70792381155391,
+          218.5115060651251
+        ],
+        "iterations": 400,
+        "nodes": 14,
+        "seconds": 1.217783762003819,
+        "utility_accounting_error": 0.0
+      },
+      {
+        "board": "9c 8c 7c 6c 2d",
+        "facing": 0,
+        "initial_gap_chips": 402.19039423173564,
+        "nash_conv_chips": 0.45320682961124703,
+        "profile_values": [
+          62.13381980747025,
+          137.86618019252987
+        ],
+        "best_response_values": [
+          62.3928616087338,
+          138.06034522087756
+        ],
+        "iterations": 400,
+        "nodes": 34,
+        "seconds": 2.953831461003574,
+        "utility_accounting_error": 1.1368683772161603e-13
+      },
+      {
+        "board": "9c 8c 7c 6c 2d",
+        "facing": 100,
+        "initial_gap_chips": 355.5978373586941,
+        "nash_conv_chips": 0.14786028853018252,
+        "profile_values": [
+          82.47988294145556,
+          217.52011705854457
+        ],
+        "best_response_values": [
+          82.56010474173351,
+          217.5877555467968
+        ],
+        "iterations": 400,
+        "nodes": 14,
+        "seconds": 1.2505547649998334,
+        "utility_accounting_error": 1.1368683772161603e-13
+      }
+    ],
+    "caveat": "Exact best responses inside the restricted river trees and supplied ranges; not full-game exploitability or a win-rate test."
+  },
+  "arenas": [
+    {
+      "benchmark": "paired-scripted-arena",
+      "version": 2,
+      "players": 3,
+      "candidate": "hybrid",
+      "hands_per_policy": 360,
+      "samples": 200,
+      "seconds_per_decision": 0.2,
+      "paired_mean_bb_per_hand": 0.18194444444444444,
+      "paired_standard_error": 0.4612778518076864,
+      "total_seconds": 25.504009358002804,
+      "caveat": "Offline cold-start comparison, not evidence of professional strength. Same shuffled deals; full button orbits per opponent style; profiles reset each hand; no rake. Time bounds can change trial counts across machines. Longer matches and strong external opponents are needed.",
+      "baseline_mean_bb_per_hand": 8.77736111111111,
+      "candidate_mean_bb_per_hand": 8.959305555555556,
+      "paired_outcomes_file": "0.6.0-arena.csv"
+    },
+    {
+      "benchmark": "paired-scripted-arena",
+      "version": 2,
+      "players": 6,
+      "candidate": "hybrid",
+      "hands_per_policy": 180,
+      "samples": 200,
+      "seconds_per_decision": 0.2,
+      "paired_mean_bb_per_hand": -0.9066666666666667,
+      "paired_standard_error": 0.643457065898629,
+      "total_seconds": 12.66509631700319,
+      "caveat": "Offline cold-start comparison, not evidence of professional strength. Same shuffled deals; full button orbits per opponent style; profiles reset each hand; no rake. Time bounds can change trial counts across machines. Longer matches and strong external opponents are needed.",
+      "baseline_mean_bb_per_hand": 17.41611111111111,
+      "candidate_mean_bb_per_hand": 16.509444444444444,
+      "paired_outcomes_file": "0.6.0-arena.csv"
+    },
+    {
+      "benchmark": "paired-scripted-arena",
+      "version": 2,
+      "players": 3,
+      "candidate": "search",
+      "hands_per_policy": 180,
+      "samples": 200,
+      "seconds_per_decision": 0.2,
+      "paired_mean_bb_per_hand": -5.8597222222222225,
+      "paired_standard_error": 4.268250260728573,
+      "total_seconds": 59.41280623800412,
+      "caveat": "Offline cold-start comparison, not evidence of professional strength. Same shuffled deals; full button orbits per opponent style; profiles reset each hand; no rake. Time bounds can change trial counts across machines. Longer matches and strong external opponents are needed.",
+      "baseline_mean_bb_per_hand": 11.5125,
+      "candidate_mean_bb_per_hand": 5.652777777777778,
+      "paired_outcomes_file": "0.6.0-arena.csv"
+    }
+  ]
+}

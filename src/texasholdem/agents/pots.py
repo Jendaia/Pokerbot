@@ -10,6 +10,13 @@ def pot_payout(contributions: dict[int, float], ranks: dict[int, tuple], hero: i
     for level in sorted({amount for amount in contributions.values() if amount > 0}):
         contributors = [id_ for id_, amount in contributions.items() if amount >= level]
         amount = (level - previous) * len(contributors)
+        if len(contributors) == 1:
+            # An unmatched layer was never contested. Return it even when
+            # its contributor later folds in another pot; it is not a win.
+            if contributors[0] == hero:
+                result += amount
+            previous = level
+            continue
         eligible = [id_ for id_ in contributors if id_ in ranks]
         if eligible:
             best = max(ranks[id_] for id_ in eligible)

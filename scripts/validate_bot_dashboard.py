@@ -22,6 +22,12 @@ def main():
                controls={"turn_token": "fixture-turn", "legal_actions": ["fold", "check", "call", "raise"],
                          "buttons": [{"action": "call", "title": "Call · 50"}], "raise_open": False,
                          "raise_min": None, "raise_max": None, "raise_value": None, "raise_steps": []})
+    bot["decision"] = {"action": {"kind": "raise", "amount": 200}, "method": "river-cfr+",
+                       "reason": "River CFR+ fixture", "equity": .72, "pot_odds": .25,
+                       "samples": 200, "elapsed_seconds": .4,
+                       "diagnostics": {"nash_conv_chips": .3, "limitations": "Restricted subgame only"},
+                       "candidates": [{"action": "check", "amount": 0, "ev_chips": 25, "probability": .4, "standard_error": None},
+                                      {"action": "raise", "amount": 200, "ev_chips": 27, "probability": .6, "standard_error": None}]}
     requests, errors = [], []
     artifacts = Path(__file__).resolve().parents[1] / "artifacts/bot"
     artifacts.mkdir(parents=True, exist_ok=True)
@@ -48,12 +54,17 @@ def main():
         page.route("**/api/bot/*", handle)
         page.goto(args.url)
         page.wait_for_function("() => document.getElementById('bot-message').textContent.includes('fixture')")
+        assert "60.0%" in page.locator("#bot-candidates").inner_text()
+        assert "72.0%" in page.locator("#bot-search-detail").inner_text()
+        assert "Restricted river gap" in page.locator("#bot-search-detail").inner_text()
         page.locator(".bot-settings summary").click()
+        page.locator("#bot-policy").select_option("search")
         page.locator("#bot-max-action").fill("200")
         page.locator("#bot-start").click()
         page.wait_for_function("() => document.getElementById('bot-badge').textContent === 'Autoplay active'")
         assert requests[-1][0] == "start" and requests[-1][1]["max_action_chips"] == 200
         assert requests[-1][1]["expected_generation"] == 10
+        assert requests[-1][1]["strategy"] == "search"
         page.locator("#pause-button").click()
         assert page.locator("#bot-stop").is_enabled()
         page.wait_for_timeout(700)
