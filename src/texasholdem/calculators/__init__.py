@@ -1,2 +1,1 @@
 """Combination and equity calculators."""
-
