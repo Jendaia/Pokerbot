@@ -124,4 +124,7 @@ Validation exports are stored in ignored `artifacts/native/`.
 Unit tests cover binary metadata/enums, bounded collection traversal and mutation,
 read-only process memory, UTF-16 names, typed card decoding, snapshot-to-equity
 validation, folded-player exclusion, and CLI JSON streaming. Personal-card
-extraction has synthetic coverage; it has not been verified live while seated.
+extraction has also been verified live while seated. The separate control reader
+follows the table's screen/control-bar models and UI parent tree, checks instant
+versus deferred actions, unwraps raise button wrappers, and reads native limits
+and bet steps. Mouse input is implemented separately from this read-only reader.

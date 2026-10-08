@@ -76,7 +76,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._local_request():
             return
-        if urlsplit(self.path).path != "/api/analyze":
+        path = urlsplit(self.path).path
+        if path not in ("/api/analyze", "/api/bot/start", "/api/bot/stop", "/api/bot/action", "/api/bot/prepare"):
             self._json({"error": "Not found"}, 404)
             return
         try:
@@ -87,6 +88,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 raise ValueError("Send the hand as JSON")
             self.connection.settimeout(5)
             payload = json.loads(self.rfile.read(length))
+            if path.startswith("/api/bot/"):
+                if not isinstance(payload, dict):
+                    raise ValueError("Send a JSON object")
+                bot = self.server.service.bot
+                if path == "/api/bot/start":
+                    expected_generation = payload.pop("expected_generation", None)
+                    result = bot.start(payload, expected_generation=expected_generation)
+                elif path == "/api/bot/stop":
+                    if payload:
+                        raise ValueError("Stop takes an empty JSON object")
+                    result = bot.stop()
+                elif path == "/api/bot/action":
+                    result = bot.act(payload)
+                else:
+                    result = bot.prepare(payload)
+                self._json({"bot": result})
+                return
             state, simulations = scenario_state(payload)
         except (ValueError, OSError, UnicodeError) as error:
             self._json({"error": str(error)}, 400)

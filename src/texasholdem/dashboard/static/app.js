@@ -3,7 +3,7 @@
 const $ = (id) => document.getElementById(id);
 const suits = {c: "♣", d: "♦", h: "♥", s: "♠"};
 const handNames = ["High Card", "One Pair", "Two Pair", "Three of a Kind", "Straight", "Flush", "Full House", "Four of a Kind", "Straight Flush"];
-const ui = {payload: null, paused: false, mode: "live", scenario: null, calculating: false, scenarioRevision: 0, analysisSignature: null, eventSignature: null};
+const ui = {payload: null, bot: null, botBusy: false, botRequestRevision: 0, botSettingsLoaded: false, raiseToken: null, paused: false, mode: "live", scenario: null, calculating: false, scenarioRevision: 0, analysisSignature: null, eventSignature: null};
 const money = (value) => value == null ? "—" : new Intl.NumberFormat(undefined, {maximumFractionDigits: Number.isInteger(value) ? 0 : 2}).format(value);
 const percentage = (value) => `${Number(value).toFixed(1)}%`;
 const bigCount = (value) => {
@@ -259,6 +259,7 @@ $("pause-button").addEventListener("click", () => {
   $("pause-button").querySelector("use").setAttribute("href", ui.paused ? "#i-play" : "#i-pause");
   setConnection(ui.payload?.connection.status || "connecting", ui.payload?.connection.message || "Connecting…");
   if (ui.payload) renderTable(ui.payload);
+  if (ui.bot) renderBot(ui.bot);
 });
 
 $("export-button").addEventListener("click", () => {
@@ -314,10 +315,11 @@ $("scenario-form").addEventListener("submit", async (event) => {
 
 async function poll() {
   try {
-    if (!ui.paused) {
+    {
       const response = await fetch("/api/state", {cache: "no-store", signal: AbortSignal.timeout(10000)});
       if (!response.ok) throw new Error("Dashboard unavailable");
       const payload = await response.json();
+      renderBot(payload.bot);
       if (ui.paused) return;
       ui.payload = payload;
       setConnection(payload.connection.status, payload.connection.message);
@@ -326,11 +328,107 @@ async function poll() {
       renderEvents(payload.events || []);
     }
   } catch (error) {
+    document.querySelectorAll("[data-poker-action]").forEach((button) => button.disabled = true);
     setConnection("reconnecting", "The dashboard connection was interrupted. Displayed values are from the last update. Reconnecting…");
   } finally {
     setTimeout(poll, 600);
   }
 }
+
+function renderBot(bot) {
+  if (!bot) return;
+  ui.bot = bot;
+  badge("bot-badge", bot.enabled ? "Autoplay active" : "Stopped", bot.enabled ? "green" : "muted");
+  $("bot-start").disabled = bot.enabled || ui.botBusy;
+  $("bot-stop").disabled = false;
+  $("bot-message").textContent = bot.message;
+  $("bot-strategy").textContent = bot.strategy.toUpperCase();
+  $("bot-reason").textContent = bot.decision?.reason || "Choose autoplay or take an action yourself when it’s your turn.";
+  $("bot-hands").textContent = bot.session.hands;
+  $("bot-action-count").textContent = bot.session.actions;
+  $("bot-net").textContent = bot.session.net_chips == null ? "—" : `${bot.session.net_chips > 0 ? "+" : ""}${money(bot.session.net_chips)}`;
+  $("bot-candidates").replaceChildren(...(bot.decision?.candidates || []).map((candidate) => {
+    const item = node("span", "candidate", `${candidate.action}${candidate.amount ? ` ${money(candidate.amount)}` : ""} · EV ${money(Math.round(candidate.ev_chips))}`);
+    item.classList.toggle("selected", candidate.action === bot.decision.action.kind && candidate.amount === bot.decision.action.amount);
+    item.title = `Simulation standard error: ${money(candidate.standard_error)} chips`;
+    return item;
+  }));
+  const controls = bot.controls;
+  const blocked = ui.paused || ui.botBusy || ["thinking", "acting", "waiting_ack"].includes(bot.status);
+  document.querySelectorAll("[data-poker-action]").forEach((button) => {
+    button.disabled = blocked || !controls?.legal_actions.includes(button.dataset.pokerAction);
+    if (button.dataset.pokerAction === "raise") button.textContent = controls?.raise_open ? "Confirm raise" : "Open raise";
+    if (button.dataset.pokerAction === "call") button.textContent = controls?.buttons.find((b) => b.action === "call")?.title || "Call";
+  });
+  $("bot-raise-amount").disabled = blocked || !controls?.raise_open;
+  if (controls?.raise_open) {
+    $("bot-raise-amount").required = true;
+    $("bot-raise-amount").min = controls.raise_min;
+    $("bot-raise-amount").max = controls.raise_max;
+    $("bot-raise-limits").textContent = `${money(controls.raise_min)}–${money(controls.raise_max)} additional chips`;
+    $("bot-raise-steps").replaceChildren(...(controls.raise_steps || []).map((value) => {
+      const option = node("option"); option.value = value; return option;
+    }));
+    if (ui.raiseToken !== controls.turn_token) $("bot-raise-amount").value = controls.raise_value;
+    ui.raiseToken = controls.turn_token;
+  } else {
+    $("bot-raise-limits").textContent = ui.paused ? "Resume updates for manual moves" : controls?.legal_actions.length ? "Only legal moves are enabled" : "Waiting for your turn";
+    ui.raiseToken = null;
+  }
+  if (!ui.botSettingsLoaded) {
+    const settings = bot.settings;
+    $("bot-max-action").value = settings.max_action_chips;
+    $("bot-loss-limit").value = settings.stop_loss_chips;
+    $("bot-hand-limit").value = settings.max_hands;
+    $("bot-think-time").value = settings.think_seconds;
+    $("bot-samples").value = settings.samples;
+    ui.botSettingsLoaded = true;
+  }
+  $("bot-history").replaceChildren(...bot.history.map((entry) => {
+    const row = node("div", "bot-history-row");
+    row.append(node("span", "", `${entry.action.kind.toUpperCase()}${entry.action.amount ? ` ${money(entry.action.amount)}` : ""}`),
+      node("span", "small-text", `${entry.hero_cards.join(" ")} · ${entry.board.join(" ") || "Pre-flop"}`),
+      node("span", "small-text", entry.acknowledged ? `Confirmed · ${clock(entry.at)}` : entry.error || "Awaiting confirmation"));
+    return row;
+  }));
+}
+
+async function botRequest(path, body) {
+  const revision = ++ui.botRequestRevision;
+  ui.botBusy = true;
+  $("bot-error").hidden = true;
+  if (ui.bot) renderBot(ui.bot);
+  try {
+    const response = await fetch(`/api/bot/${path}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body), signal: AbortSignal.timeout(5000)});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "The bot request failed");
+    if (revision === ui.botRequestRevision) ui.bot = result.bot;
+  } catch (error) {
+    if (revision === ui.botRequestRevision) {
+      $("bot-error").textContent = error.message;
+      $("bot-error").hidden = false;
+    }
+  } finally {
+    if (revision === ui.botRequestRevision) {
+      ui.botBusy = false;
+      if (ui.bot) renderBot(ui.bot);
+    }
+  }
+}
+
+$("bot-start").addEventListener("click", () => {
+  if (!$("bot-settings-form").reportValidity()) return;
+  botRequest("start", {expected_generation: ui.bot?.generation, max_action_chips: Number($("bot-max-action").value), stop_loss_chips: Number($("bot-loss-limit").value), max_hands: Number($("bot-hand-limit").value), think_seconds: Number($("bot-think-time").value), samples: Number($("bot-samples").value)});
+});
+$("bot-stop").addEventListener("click", () => botRequest("stop", {}));
+document.querySelectorAll("[data-poker-action]").forEach((button) => button.addEventListener("click", () => {
+  const controls = ui.bot?.controls;
+  if (!controls) return;
+  const action = button.dataset.pokerAction;
+  if (action === "raise" && !controls.raise_open) return botRequest("prepare", {turn_token: controls.turn_token});
+  if (action === "raise" && !$("bot-raise-amount").reportValidity()) return;
+  botRequest("action", {action, amount: action === "raise" ? Number($("bot-raise-amount").value) : 0, turn_token: controls.turn_token});
+}));
 
 showCards($("board-cards"), [], 5);
 showCards($("hero-cards"), [], 2);

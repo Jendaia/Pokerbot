@@ -41,3 +41,9 @@ def list_pointers(reader: MemoryReader, address: int, *, maximum: int = 10) -> t
     if (size, version) != reader.unpack("<ii", address + 24) or items != reader.pointer(address + 16):
         raise ValueError("List changed while it was read")
     return result
+
+
+def list_int64(reader: MemoryReader, address: int, *, maximum: int = 512) -> tuple[int, ...]:
+    """List<long> shares the eight-byte array element layout with pointer lists."""
+    return tuple(value if value < 2**63 else value - 2**64
+                 for value in list_pointers(reader, address, maximum=maximum))

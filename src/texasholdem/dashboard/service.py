@@ -6,11 +6,13 @@ from datetime import datetime, timezone
 import json
 from math import isfinite
 import threading
+from pathlib import Path
 from typing import Callable
 
 from ..analyzers.native import PokeristReader
 from ..core.game_state import GameState
 from ..models.observation import TableObservation
+from ..agents.controller import BotController
 from .analysis import analyze_state, round_metrics
 
 
@@ -23,7 +25,8 @@ class DashboardService:
 
     def __init__(self, *, pid: int | None = None, table_id: int | None = None,
                  interval: float = 0.5, simulations: int = 10_000,
-                 reader_factory: Callable | None = None, analyzer: Callable = analyze_state):
+                 reader_factory: Callable | None = None, analyzer: Callable = analyze_state,
+                 bot: BotController | None = None):
         if not isfinite(interval) or interval <= 0:
             raise ValueError("Refresh interval must be finite and positive")
         if type(simulations) is not int or not 1_000 <= simulations <= 50_000:
@@ -31,6 +34,7 @@ class DashboardService:
         self.interval, self.simulations = interval, simulations
         self.reader_factory = reader_factory or (lambda: PokeristReader(pid, table_id=table_id))
         self.analyzer = analyzer
+        self.bot = bot or BotController(pid=pid, table_id=table_id, audit_dir=Path("exports/autoplay"))
         self.condition = threading.Condition()
         self.stopped = threading.Event()
         self.threads: list[threading.Thread] = []
@@ -49,12 +53,14 @@ class DashboardService:
     def start(self) -> None:
         if self.threads:
             return
+        self.bot.start_worker()
         for name, target in (("poker-reader", self._read_loop), ("poker-analysis", self._analysis_loop)):
             thread = threading.Thread(name=name, target=target, daemon=True)
             self.threads.append(thread)
             thread.start()
 
     def close(self) -> None:
+        self.bot.close()
         self.stopped.set()
         with self.condition:
             self.condition.notify_all()
@@ -63,7 +69,9 @@ class DashboardService:
 
     def snapshot(self) -> dict:
         with self.condition:
-            return deepcopy(self.payload)
+            payload = deepcopy(self.payload)
+        payload["bot"] = self.bot.snapshot()
+        return payload
 
     def _event(self, message: str, kind: str = "round") -> None:
         self.sequence += 1

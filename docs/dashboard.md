@@ -33,9 +33,10 @@ trigger rediscovery, including after game restarts and table changes.
 
 The HTTP service uses Python's
 [ThreadingHTTPServer](https://docs.python.org/3/library/http.server.html#http.server.ThreadingHTTPServer)
-bound to IPv4 loopback. Assets are packaged with the Python distribution. No game
-control endpoints, directory browsing, CDN fonts, or external frontend libraries
-are included. The API is also usable directly by a future AI consumer.
+bound to IPv4 loopback. Assets are packaged with the Python distribution. Bot
+control endpoints validate local origins and accept typed actions for the
+current native turn. Arbitrary mouse coordinates and process targets are not
+accepted. The API is also usable directly by a future AI consumer.
 
 ## API
 
@@ -52,6 +53,18 @@ are included. The API is also usable directly by a future AI consumer.
   full count in its tooltip and export.
 - `events`: up to 40 observed changes. These are local observations, not a
   complete server hand history or inferred betting actions.
+- `bot`: autoplay state, settings, native legal actions and turn token, current
+  decision/action-value estimates, public opponent statistics, session metrics,
+  and recent submitted/acknowledged actions.
+
+`POST /api/bot/start` accepts bot settings (an empty object uses current
+settings); `POST /api/bot/stop` accepts `{}`. `POST /api/bot/prepare` accepts
+`{"turn_token":"..."}` and opens the current native raise controls without
+confirming a bet. `POST /api/bot/action` accepts
+`{"action":"call","amount":0,"turn_token":"..."}`. Fold, check, and call
+use amount zero; raise uses a positive integer additional-chip amount. Manual
+requests pause autoplay and are rejected if the displayed turn is stale.
+See [autoplay](autoplay.md) for the controller and strategy model.
 
 `POST /api/analyze` accepts a separate scenario:
 
@@ -82,11 +95,13 @@ incomplete five-card hand.
 Live calculations require an active Texas Hold'em personal hand from
 `TableObservation.to_game_state()`. Spectators have no personal hand and see
 placeholders. The What if tab provides an independent calculator in that case.
-The private-card native path still needs live validation while seated; its
-extraction and dashboard flow have synthetic test coverage.
+The private-card native path and game input have been validated while seated;
+native extraction, cancellation, and action flows also have synthetic coverage.
 
-Unknown opponents have uniform legal holdings. Future folds, weighted ranges,
-and side-pot eligibility are not modeled. Collected pot and street bets remain
+The **Your odds** calculator uses uniform unknown opponents. Future folds,
+weighted ranges, and side-pot eligibility are not modeled in those percentages.
+The separate **Your copilot** policy uses weighted opponent ranges and layered
+pot payouts; its estimates are labeled as decision values. Collected pot and street bets remain
 separate, with their sum labeled as derived. The displayed call ratio is
 `call / (pot + call)`, capped by the remaining stack; it does not decide a betting
 action or model payouts. See [native field meanings](native_reader.md) and
@@ -103,6 +118,7 @@ action or model payouts. See [native field meanings](native_reader.md) and
 
 # With poker-dashboard running:
 .venv/bin/python scripts/validate_dashboard.py
+.venv/bin/python scripts/validate_bot_dashboard.py
 ```
 
 Browser checks cover visual percentages for exact wins and ties, all hand bars,

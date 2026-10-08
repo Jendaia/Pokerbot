@@ -58,3 +58,15 @@ class DashboardServerTests(unittest.TestCase):
             self.assertEqual(self.request("GET", path)[0], 404)
         for headers in ({"Origin": "https://example.com"}, {"Host": "example.com"}, {"Origin": "http://localhost:bad"}):
             self.assertEqual(self.request("GET", "/api/state", headers=headers)[0], 403)
+
+    def test_autoplay_settings_start_stop_and_remote_requests_rejected(self):
+        headers = {"Content-Type": "application/json"}
+        status, _, body = self.request("POST", "/api/bot/start", '{"max_action_chips":100}', headers)
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(body)["bot"]["enabled"])
+        status, _, body = self.request("POST", "/api/bot/stop", '{}', headers)
+        self.assertEqual(status, 200)
+        self.assertFalse(json.loads(body)["bot"]["enabled"])
+        self.assertEqual(self.request("POST", "/api/bot/start", '{"samples":true}', headers)[0], 400)
+        self.assertEqual(self.request("POST", "/api/bot/action", '{"action":"call","amount":0,"turn_token":"stale"}', headers)[0], 400)
+        self.assertEqual(self.request("POST", "/api/bot/start", '{}', {**headers, "Origin": "http://attacker.example"})[0], 403)

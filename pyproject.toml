@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "texasholdem-calculator"
-version = "0.4.0"
-description = "Texas Hold'em equity calculator, native Pokerist analyzer, and live web dashboard"
+version = "0.5.0"
+description = "Texas Hold'em calculator, native Pokerist dashboard, and autonomous play controller"
 requires-python = ">=3.10"
 readme = "README.md"
 license = {text = "MIT"}

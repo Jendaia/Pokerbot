@@ -1,4 +1,4 @@
-# Texas Hold'em calculator and Pokerist analyzer
+# Texas Hold'em calculator, Pokerist dashboard, and autonomous bot
 
 A Python calculation engine for a future poker AI. It counts and streams every
 legal combination and calculates showdown win, tie, loss, and split-pot equity
@@ -7,6 +7,7 @@ known opponent cards, and dead cards.
 
 Python 3.10+. The calculator has no runtime dependencies. The optional native
 Pokerist analyzer uses NumPy and reads a locally running Linux/Steam Proton client.
+The bot adds a range-weighted decision policy and ordinary X11 mouse input.
 
 ## Open the visual dashboard
 
@@ -33,6 +34,41 @@ all nine final hand-category probabilities. Exact results and estimates are
 labeled separately. Spectator mode shows an explicit empty personal hand.
 The **What if** tab calculates a separately entered hand while the live table
 remains visible. Scenario results are labeled and never alter game state.
+
+## Autonomous play and game controls
+
+Enter a Pokerist Texas Hold'em table and take a seat. In **Your copilot**, click
+**Start autoplay**. The bot observes opponents, samples legal holdings and board
+runouts, evaluates fold/check/call/raise choices, and submits its selected move.
+**Stop** cancels pending planning and future clicks. Manual Fold, Check, Call,
+and Raise controls pause autoplay and apply only to the displayed live turn.
+Open Raise to read the game's minimum, maximum, and available bet steps; the
+entered amount is **additional chips**, not the total street wager.
+
+```bash
+# Enable autoplay as soon as the dashboard connects to a seated player.
+.venv/bin/poker-dashboard --autoplay
+```
+
+Session settings include chips per move, a loss limit, a hand limit, compute
+time, and sample count. Defaults are 1,000 chips per move, a 2,000-chip loss
+limit, 100 hands, up to two seconds and 3,000 samples per decision. A table
+change or lost live connection stops the session. Seat/buy-in and rebuy remain
+under your control. Decisions and confirmed actions are saved locally to
+`exports/autoplay/YYYY-MM-DD.jsonl` and shown in the dashboard.
+
+Input requires the Linux Steam/Proton client running on X11, `xwininfo`, `xprop`,
+`libX11`, and `libXtst`. On Ubuntu/Debian, the system packages are:
+
+```bash
+sudo apt install x11-utils libx11-6 libxtst6
+```
+
+This is an experimental **range-weighted rollout policy**, with public-action
+opponent modeling, main/side-pot payouts, native bet sizing, and stale-turn
+protection. It is not a trained Pluribus/ReBeL model or a benchmarked
+state-of-the-art player. Future streets check down in its simulations, and
+opponent response estimates are heuristic. See [bot design and validation](docs/autoplay.md).
 
 Pause/resume updates, expand player details, and export the current observation
 as JSON. The layout works on desktop and mobile. The server reconnects if the
@@ -85,8 +121,8 @@ the installed metadata and runtime reflection records. Addresses are rediscovere
 on each launch. It does not send actions to the game.
 
 **Spectators have no personal cards.** Spectator observations contain
-`hero_id: null` and `hero_cards: []`. The private-card path is implemented for a
-seated player, but the current live validation was performed as a spectator.
+`hero_id: null` and `hero_cards: []`. Personal-card extraction has also been
+verified live while seated, including changing hole cards and betting streets.
 `--equity` returns an explicit reason when a personal hand is unavailable.
 
 This reader was verified on the local Steam/Proton Pokerist client using Unity
@@ -215,6 +251,8 @@ Public helpers also include `evaluate`, `evaluate_five`, `best_five`, `showdown`
 src/texasholdem/
 ├── core/          # cards, immutable game state, rankings, showdown
 ├── calculators/   # counting, enumeration, sampling, equity, distributions
+├── agents/        # action-value policy, public opponent model, pots, controller
+├── adapters/      # validated Pokerist actions and X11 mouse input
 ├── analyzers/
 │   └── native/    # process, metadata, runtime, collections, table reader
 ├── dashboard/     # live service, analysis, local HTTP API, visual frontend
@@ -223,6 +261,7 @@ src/texasholdem/
 tests/
 ├── core/
 ├── calculators/
+├── agents/
 ├── native/
 ├── dashboard/
 └── interfaces/
@@ -232,8 +271,8 @@ docs/              # architecture and probability model
 ```
 
 See [architecture](docs/architecture.md) and [probability model](docs/probability_model.md)
-for extension points and assumptions. An agent's betting policy, opponent ranges,
-action history, and pot/stack model can be added as separate modules.
+for extension points and assumptions. The betting policy is separate from game
+observation and input, so a trained strategy can replace the rollout policy.
 
 ## Verify
 
