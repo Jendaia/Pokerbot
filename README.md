@@ -39,7 +39,9 @@ remains visible. Scenario results are labeled and never alter game state.
 
 Enter a Pokerist Texas Hold'em table and take a seat. In **Your copilot**, click
 **Start autoplay**. The default hybrid strategy solves heads-up rivers with
-CFR+ and keeps the original range rollout on other streets. An experimental
+CFR+ and uses range rollout on other streets. The default **Maximize chip EV**
+objective chooses the highest estimated chip return. Bets adapt to pot size,
+available chips, opponents' effective stacks, and native legal amounts. An experimental
 multi-street search option simulates later betting and counter-raises. It submits its selected fold/check/call/raise through the game.
 **Stop** cancels pending planning and future clicks. Manual Fold, Check, Call,
 and Raise controls pause autoplay and apply only to the displayed live turn.
@@ -48,12 +50,16 @@ entered amount is **additional chips**, not the total street wager.
 
 ```bash
 # Enable autoplay as soon as the dashboard connects to a seated player.
-.venv/bin/poker-dashboard --autoplay
+.venv/bin/poker-dashboard --autoplay --objective profit
 ```
 
-Session settings include chips per move, a loss limit, a hand limit, compute
-time, strategy selection, and sample/iteration count. Defaults are 1,000 chips per move, a 2,000-chip loss
-limit, 100 hands, up to two seconds and 3,000 samples per decision. A table
+The default has **no per-move, loss, or hand limit**: autoplay can use the whole
+table stack and continues across hands. Leave each optional limit blank, or
+enter a cap. Choose **Balanced** for mixed river strategies, or **Preserve stack**
+to penalize large potential losses relative to your remaining chips. **Apply
+settings** changes the objective or limits during the session without resetting
+its results or restarting a stopped bot. Planning defaults to two seconds and
+3,000 samples/iterations per decision. A table
 change or lost live connection stops the session. Seat/buy-in and rebuy remain
 under your control. Decisions and confirmed actions are saved locally to
 `exports/autoplay/YYYY-MM-DD.jsonl` and shown in the dashboard.
@@ -65,9 +71,12 @@ Input requires the Linux Steam/Proton client running on X11, `xwininfo`, `xprop`
 sudo apt install x11-utils libx11-6 libxtst6
 ```
 
-The dashboard shows **mixed action frequencies**, action values, range equity,
-and a convergence diagnostic for the restricted river subgame. Both the original
-rollout and experimental multi-street search remain selectable for comparison. Installation needs no trained-model
+The dashboard shows action frequencies, expected chip values, range equity,
+and a convergence diagnostic for the restricted river solver. With the profit
+objective, the solver's mixed-profile gap is labeled **Solver baseline gap**;
+it does not measure the selected greedy policy. Chip EV is an estimate, not
+guaranteed earnings. Range rollout and experimental multi-street search remain
+selectable for comparison. Installation needs no trained-model
 download, GPU, or API key; `requirements.txt` includes the solver dependency.
 
 Playing strength is experimental. This is not a trained Pluribus/ReBeL model

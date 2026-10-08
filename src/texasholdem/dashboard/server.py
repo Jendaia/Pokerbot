@@ -77,7 +77,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if not self._local_request():
             return
         path = urlsplit(self.path).path
-        if path not in ("/api/analyze", "/api/bot/start", "/api/bot/stop", "/api/bot/action", "/api/bot/prepare"):
+        if path not in ("/api/analyze", "/api/bot/start", "/api/bot/stop", "/api/bot/settings", "/api/bot/action", "/api/bot/prepare"):
             self._json({"error": "Not found"}, 404)
             return
         try:
@@ -95,6 +95,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 if path == "/api/bot/start":
                     expected_generation = payload.pop("expected_generation", None)
                     result = bot.start(payload, expected_generation=expected_generation)
+                elif path == "/api/bot/settings":
+                    expected_generation = payload.pop("expected_generation", None)
+                    result = bot.configure(payload, expected_generation=expected_generation)
                 elif path == "/api/bot/stop":
                     if payload:
                         raise ValueError("Stop takes an empty JSON object")

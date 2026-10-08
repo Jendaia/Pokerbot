@@ -70,3 +70,21 @@ class DashboardServerTests(unittest.TestCase):
         self.assertEqual(self.request("POST", "/api/bot/start", '{"samples":true}', headers)[0], 400)
         self.assertEqual(self.request("POST", "/api/bot/action", '{"action":"call","amount":0,"turn_token":"stale"}', headers)[0], 400)
         self.assertEqual(self.request("POST", "/api/bot/start", '{}', {**headers, "Origin": "http://attacker.example"})[0], 403)
+
+    def test_unlimited_objective_settings_apply_with_generation_without_starting(self):
+        headers = {"Content-Type": "application/json"}
+        self.service.bot.stop()
+        generation = self.service.bot.generation
+        settings = {"objective": "conservative", "max_action_chips": None, "max_hands": None,
+                    "stop_loss_chips": None, "expected_generation": generation}
+        status, _, body = self.request("POST", "/api/bot/settings", json.dumps(settings), headers)
+        self.assertEqual(status, 200)
+        bot = json.loads(body)["bot"]
+        self.assertFalse(bot["enabled"])
+        self.assertEqual(bot["settings"]["objective"], "conservative")
+        self.assertIsNone(bot["settings"]["max_action_chips"])
+        self.assertEqual(self.request("POST", "/api/bot/settings", json.dumps(settings), headers)[0], 400)
+        for invalid in ({"objective": "money"}, {"samples": None}, {"max_hands": False}):
+            status, _, _ = self.request("POST", "/api/bot/settings", json.dumps({**invalid, "expected_generation": bot["generation"]}), headers)
+            self.assertEqual(status, 400)
+        self.assertEqual(self.request("POST", "/api/bot/settings", '{}', headers)[0], 400)

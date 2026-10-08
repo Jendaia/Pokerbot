@@ -66,13 +66,30 @@ use amount zero; raise uses a positive integer additional-chip amount. Manual
 requests pause autoplay and are rejected if the displayed turn is stale.
 See [autoplay](autoplay.md) for the controller and strategy model.
 
+`POST /api/bot/settings` accepts partial bot settings plus the displayed integer
+`expected_generation`. It applies changes without resetting the session or
+enabling a stopped bot; stale generations and changes during input/confirmation
+are rejected. Start accepts an optional `expected_generation` too, so delayed
+requests cannot override a newer Stop. The dashboard sends this on every Start
+and Apply settings request.
+
+`objective` is `profit` (default; highest estimated chip EV), `balanced` (mixed
+river strategy and simulation-noise margin), or `conservative` (stack-scaled
+downside penalty and larger noise margin). `max_action_chips`, `stop_loss_chips`
+and `max_hands` default to `null` for no user cap. Blank fields submit `null`;
+positive integers activate individual limits, while zero/negative values are
+rejected. Session settings and the always-visible summary show the active caps.
+
 Bot settings accept `strategy`: `hybrid` (default; heads-up river CFR+ and the
-original rollout elsewhere), `rollout` (original baseline), or `search`
+range rollout elsewhere), `rollout`, or `search`
 (experimental multi-street continuation search). Decisions include `method`
 and `diagnostics`; candidates may include a mixed-strategy `probability`.
 These action frequencies are separate from showdown winning probabilities.
 The river solver sets simulation `standard_error` to `null` and reports
-`nash_conv_chips` for its restricted subgame and estimated ranges. It is not
+`nash_conv_chips` for its restricted subgame and estimated ranges in balanced
+mode. Profit mode reports method `river-cfr+-ev` and `solver_nash_conv_chips`
+instead: the mixed-profile diagnostic does not describe its greedy root action.
+Conservative mode uses rollout utility on rivers too. These values are not
 full-game exploitability. All diagnostics are also included in local audit logs.
 
 `POST /api/analyze` accepts a separate scenario:

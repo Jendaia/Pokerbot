@@ -1,5 +1,11 @@
 # Poker strategy research and evaluation — 0.6.0
 
+This is the historical v0.6.0 evaluation. To reproduce its policy, use commit
+`73cc4c44e33d4456cd403f080e695715c0fb352f` in a separate checkout before running
+the commands below. v0.7.0 adds selectable objectives, unlimited session defaults
+and adaptive sizing; its profit default is not covered by these measurements.
+See [current objectives and behavior](autoplay.md#playing-objectives-and-automatic-bet-sizes).
+
 Research checked 8 October 2026. This release adds a working, local river solver
 and a measured strategy-development path. It does **not** establish SOTA playing
 strength. No freely downloadable, validated superhuman multiplayer checkpoint

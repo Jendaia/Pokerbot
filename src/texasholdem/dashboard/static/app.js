@@ -341,8 +341,9 @@ function renderBot(bot) {
   badge("bot-badge", bot.enabled ? "Autoplay active" : "Stopped", bot.enabled ? "green" : "muted");
   $("bot-start").disabled = bot.enabled || ui.botBusy;
   $("bot-stop").disabled = false;
+  $("bot-apply").disabled = ui.botBusy || ["acting", "waiting_ack"].includes(bot.status);
   $("bot-message").textContent = bot.message;
-  const methodNames = {"river-cfr+": "River CFR+ · mixed strategy", "multi-street-rollout": "Multi-street search · experimental", "rollout-v1": "Original range rollout", "ledger-guard": "Waiting for hand history"};
+  const methodNames = {"river-cfr+": "River CFR+ · mixed strategy", "river-cfr+-ev": "River CFR+ · maximum chip EV", "multi-street-rollout": "Multi-street search · experimental", "rollout-v1": "Range rollout", "ledger-guard": "Waiting for hand history"};
   $("bot-strategy").textContent = (methodNames[bot.decision?.method] || bot.strategy).toUpperCase();
   $("bot-reason").textContent = bot.decision?.reason || "Choose autoplay or take an action yourself when it’s your turn.";
   const decision = bot.decision;
@@ -352,6 +353,7 @@ function renderBot(bot) {
     `Call price ${(decision.pot_odds * 100).toFixed(1)}%`,
     `${decision.elapsed_seconds.toFixed(2)}s`,
     diagnostic.nash_conv_chips == null ? "" : `Restricted river gap: ${money(diagnostic.nash_conv_chips.toFixed(2))} chips`,
+    diagnostic.solver_nash_conv_chips == null ? "" : `Solver baseline gap: ${money(diagnostic.solver_nash_conv_chips.toFixed(2))} chips`,
     diagnostic.model_spread_chips == null ? "" : `Opponent-model spread: ${money(Math.round(diagnostic.model_spread_chips))} chips`,
   ].filter(Boolean).join(" · ");
   $("bot-search-detail").title = diagnostic.limitations || "";
@@ -363,7 +365,7 @@ function renderBot(bot) {
     const item = node("span", "candidate", `${candidate.action}${candidate.amount ? ` ${money(candidate.amount)}` : ""}${mix} · EV ${money(Math.round(candidate.ev_chips))}`);
     item.style.setProperty("--mix", `${Math.min(100, Math.max(0, (candidate.probability || 0) * 100))}%`);
     item.classList.toggle("selected", candidate.action === bot.decision.action.kind && candidate.amount === bot.decision.action.amount);
-    item.title = candidate.standard_error == null ? "Action frequency and value against the solver’s average strategy; restricted river tree and estimated ranges" : `Simulation standard error: ${money(candidate.standard_error)} chips; does not include model error`;
+    item.title = candidate.standard_error == null ? "Action frequency and value against the solver’s average strategy; restricted river tree and estimated ranges" : `Simulation standard error: ${money(candidate.standard_error)} chips; objective score: ${money(Math.round(candidate.score))}; does not include model error`;
     return item;
   }));
   const controls = bot.controls;
@@ -390,14 +392,22 @@ function renderBot(bot) {
   }
   if (!ui.botSettingsLoaded) {
     const settings = bot.settings;
-    $("bot-max-action").value = settings.max_action_chips;
-    $("bot-loss-limit").value = settings.stop_loss_chips;
-    $("bot-hand-limit").value = settings.max_hands;
+    $("bot-max-action").value = settings.max_action_chips ?? "";
+    $("bot-loss-limit").value = settings.stop_loss_chips ?? "";
+    $("bot-hand-limit").value = settings.max_hands ?? "";
     $("bot-think-time").value = settings.think_seconds;
     $("bot-samples").value = settings.samples;
     $("bot-policy").value = settings.strategy || "hybrid";
+    $("bot-objective").value = settings.objective || "profit";
+    describeObjective();
     ui.botSettingsLoaded = true;
   }
+  const objectiveNames = {profit: "Maximize chip EV", balanced: "Balanced", conservative: "Preserve stack"};
+  $("bot-config-summary").textContent = [objectiveNames[bot.settings.objective || "profit"],
+    bot.settings.max_action_chips == null ? "Full table stack available" : `Per move: ${money(bot.settings.max_action_chips)} chips`,
+    bot.settings.stop_loss_chips == null ? "No loss limit" : `Loss limit: ${money(bot.settings.stop_loss_chips)} chips`,
+    bot.settings.max_hands == null ? "No hand limit" : `${money(bot.settings.max_hands)} hands max`,
+  ].join(" · ");
   $("bot-history").replaceChildren(...bot.history.map((entry) => {
     const row = node("div", "bot-history-row");
     row.append(node("span", "", `${entry.action.kind.toUpperCase()}${entry.action.amount ? ` ${money(entry.action.amount)}` : ""}`),
@@ -430,9 +440,29 @@ async function botRequest(path, body) {
   }
 }
 
+function chosenBotSettings() {
+  const optional = (id) => $(id).value.trim() === "" ? null : Number($(id).value);
+  return {expected_generation: ui.bot?.generation, strategy: $("bot-policy").value,
+    objective: $("bot-objective").value, max_action_chips: optional("bot-max-action"),
+    stop_loss_chips: optional("bot-loss-limit"), max_hands: optional("bot-hand-limit"),
+    think_seconds: Number($("bot-think-time").value), samples: Number($("bot-samples").value)};
+}
+function describeObjective() {
+  $("bot-objective-help").textContent = {
+    profit: "Maximize chip EV: choose the highest estimated chip return. Includes stack-aware bets and overbets; heads-up rivers use action values against the solver’s opponent strategy.",
+    balanced: "Balanced: use mixed CFR+ strategies on heads-up rivers and discount simulation uncertainty elsewhere. The restricted river gap describes this solver profile only.",
+    conservative: "Preserve stack: penalize large potential losses relative to the remaining stack and discount uncertain estimates. Uses risk-adjusted rollout values, including on the river.",
+  }[$("bot-objective").value];
+}
+$("bot-objective").addEventListener("change", describeObjective);
+$("bot-settings-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!$("bot-settings-form").reportValidity()) return;
+  botRequest("settings", chosenBotSettings());
+});
 $("bot-start").addEventListener("click", () => {
   if (!$("bot-settings-form").reportValidity()) return;
-  botRequest("start", {expected_generation: ui.bot?.generation, strategy: $("bot-policy").value, max_action_chips: Number($("bot-max-action").value), stop_loss_chips: Number($("bot-loss-limit").value), max_hands: Number($("bot-hand-limit").value), think_seconds: Number($("bot-think-time").value), samples: Number($("bot-samples").value)});
+  botRequest("start", chosenBotSettings());
 });
 $("bot-stop").addEventListener("click", () => botRequest("stop", {}));
 document.querySelectorAll("[data-poker-action]").forEach((button) => button.addEventListener("click", () => {

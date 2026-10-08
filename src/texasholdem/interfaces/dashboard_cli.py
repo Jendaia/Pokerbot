@@ -17,6 +17,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--simulations", type=positive_integer, default=10_000, help="live equity sample count (1000–50000)")
     parser.add_argument("--no-browser", action="store_true", help="start the server without opening a browser")
     parser.add_argument("--autoplay", action="store_true", help="enable the bot when the dashboard starts")
+    parser.add_argument("--objective", choices=("profit", "balanced", "conservative"), default="profit",
+                        help="autoplay objective (default: profit / expected chip value)")
     args = parser.parse_args(argv)
     if args.port > 65535:
         parser.error("--port must be between 1 and 65535")
@@ -27,7 +29,9 @@ def main(argv: list[str] | None = None) -> int:
         with DashboardServer(args.port, service) as server:
             service.start()
             if args.autoplay:
-                service.bot.start()
+                service.bot.start({"objective": args.objective})
+            else:
+                service.bot.configure({"objective": args.objective}, expected_generation=service.bot.generation)
             url = f"http://127.0.0.1:{server.server_port}"
             print(f"Poker dashboard: {url}\nCtrl+C stops the dashboard.", flush=True)
             if not args.no_browser:

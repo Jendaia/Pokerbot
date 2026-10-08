@@ -18,6 +18,7 @@ def main():
     # Only this headless browser sees the fixture; all control requests are
     # intercepted so the real bot is never started/stopped or given a test move.
     bot = payload["bot"]
+    bot["settings"].update(objective="profit", max_action_chips=None, stop_loss_chips=None, max_hands=None)
     bot.update(enabled=False, status="stopped", message="Controls fixture · autoplay stopped", generation=10,
                controls={"turn_token": "fixture-turn", "legal_actions": ["fold", "check", "call", "raise"],
                          "buttons": [{"action": "call", "title": "Call · 50"}], "raise_open": False,
@@ -44,6 +45,8 @@ def main():
             if action == "start":
                 bot.update(enabled=True, status="waiting", message="Controls fixture · autoplay active")
                 bot["settings"].update({k: v for k, v in data.items() if k != "expected_generation"})
+            elif action == "settings":
+                bot["settings"].update({k: v for k, v in data.items() if k != "expected_generation"})
             elif action == "stop":
                 bot.update(enabled=False, status="stopped", message="Controls fixture · autoplay stopped")
             elif action == "prepare":
@@ -58,6 +61,8 @@ def main():
         assert "72.0%" in page.locator("#bot-search-detail").inner_text()
         assert "Restricted river gap" in page.locator("#bot-search-detail").inner_text()
         page.locator(".bot-settings summary").click()
+        assert "No hand limit" in page.locator("#bot-config-summary").inner_text()
+        assert page.locator("#bot-max-action").input_value() == ""
         page.locator("#bot-policy").select_option("search")
         page.locator("#bot-max-action").fill("200")
         page.locator("#bot-start").click()
@@ -65,6 +70,17 @@ def main():
         assert requests[-1][0] == "start" and requests[-1][1]["max_action_chips"] == 200
         assert requests[-1][1]["expected_generation"] == 10
         assert requests[-1][1]["strategy"] == "search"
+        assert requests[-1][1]["objective"] == "profit"
+        assert requests[-1][1]["stop_loss_chips"] is None
+        assert requests[-1][1]["max_hands"] is None
+        page.locator("#bot-objective").select_option("conservative")
+        page.locator("#bot-max-action").fill("")
+        page.locator("#bot-apply").click()
+        page.wait_for_function("() => document.getElementById('bot-config-summary').textContent.includes('Preserve stack')")
+        assert requests[-1][0] == "settings"
+        assert requests[-1][1]["max_action_chips"] is None
+        assert page.locator("#bot-badge").inner_text() == "Autoplay active"
+        assert "Full table stack available" in page.locator("#bot-config-summary").inner_text()
         page.locator("#pause-button").click()
         assert page.locator("#bot-stop").is_enabled()
         page.wait_for_timeout(700)

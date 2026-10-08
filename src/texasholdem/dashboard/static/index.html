@@ -48,7 +48,22 @@
       </div>
       <div class="manual-controls"><span class="label">YOUR MOVE</span><button class="button secondary" data-poker-action="fold" disabled>Fold</button><button class="button secondary" data-poker-action="check" disabled>Check</button><button class="button secondary" data-poker-action="call" disabled>Call</button><label class="raise-input">Chips to add <input id="bot-raise-amount" type="number" min="1" step="1" list="bot-raise-steps" placeholder="Open raise controls" aria-label="Additional chips to raise" disabled><datalist id="bot-raise-steps"></datalist></label><button class="button secondary" data-poker-action="raise" disabled>Open raise</button><span class="small-text" id="bot-raise-limits"></span></div>
       <p id="bot-error" class="form-error" role="alert" hidden></p>
-      <details class="bot-settings"><summary>Session settings & decision history <svg class="icon"><use href="#i-chevron"/></svg></summary><form id="bot-settings-form"><label>Strategy<select id="bot-policy"><option value="hybrid">River CFR+ / range rollout</option><option value="search">Multi-street search (experimental)</option><option value="rollout">Original rollout (comparison)</option></select></label><label>Max chips per move<input id="bot-max-action" type="number" min="1" max="1000000000" value="1000" required></label><label>Stop after losing<input id="bot-loss-limit" type="number" min="1" max="1000000000" value="2000" required></label><label>Hand limit<input id="bot-hand-limit" type="number" min="1" max="10000" value="100" required></label><label>Think time (seconds)<input id="bot-think-time" type="number" min="0.2" max="5" step="0.1" value="2" required></label><label>Samples / solver iterations<input id="bot-samples" type="number" min="200" max="20000" step="100" value="3000" required></label></form><p class="bot-model-note">The default combines CFR+ on heads-up rivers with the original rollout elsewhere. Experimental multi-street search is available for comparison; it has not passed the performance gate. Action percentages are strategy frequencies; they are separate from winning odds. The river gap measures only the restricted subgame. Playing strength is experimental and unproven. Session limits apply to autoplay; a manual move pauses it.</p><div id="bot-history" class="bot-history"><p class="small-text">Confirmed decisions will appear here.</p></div></details>
+      <p id="bot-config-summary" class="bot-config-summary"></p>
+      <details class="bot-settings"><summary>Playing objective, optional limits & history <svg class="icon"><use href="#i-chevron"/></svg></summary>
+        <form id="bot-settings-form">
+          <label>Playing objective<select id="bot-objective"><option value="profit">Maximize chip EV</option><option value="balanced">Balanced / mixed strategy</option><option value="conservative">Preserve stack</option></select></label>
+          <label>Strategy<select id="bot-policy"><option value="hybrid">River CFR+ / range rollout</option><option value="search">Multi-street search (experimental)</option><option value="rollout">Range rollout</option></select></label>
+          <label>Max chips per move<input id="bot-max-action" type="number" min="1" max="1000000000" step="1" placeholder="No limit"></label>
+          <label>Stop after losing<input id="bot-loss-limit" type="number" min="1" max="1000000000" step="1" placeholder="No limit"></label>
+          <label>Hand limit<input id="bot-hand-limit" type="number" min="1" max="10000" step="1" placeholder="No limit"></label>
+          <label>Think time (seconds)<input id="bot-think-time" type="number" min="0.2" max="5" step="0.1" value="2" required></label>
+          <label>Samples / solver iterations<input id="bot-samples" type="number" min="200" max="20000" step="100" value="3000" required></label>
+          <button id="bot-apply" type="submit" class="button secondary">Apply settings</button>
+        </form>
+        <p id="bot-objective-help" class="bot-model-note"></p>
+        <p class="bot-model-note">Leave a limit blank for continuous play with the full available table stack. Bet sizes adapt to the pot, opponents’ stacks and your objective. Apply settings changes the current session without resetting its results. Stop ends autoplay; manual moves pause it. Chip EV is an estimate, not guaranteed earnings. Experimental multi-street search remains unproven; action frequencies are separate from winning odds.</p>
+        <div id="bot-history" class="bot-history"><p class="small-text">Confirmed decisions will appear here.</p></div>
+      </details>
     </section>
 
     <div class="workspace">

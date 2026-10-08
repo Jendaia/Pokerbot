@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from ..models import Action
+from ..sizing import native_actions  # Public compatibility import for existing integrations.
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,29 +153,3 @@ class BettingState:
         following = next((p + offset) % len(stacks) for offset in range(1, len(stacks) + 1)
                          if (p + offset) % len(stacks) in pending)
         return replace(result, actor=following)
-
-
-def native_actions(frame, tracker, settings):
-    """Exact root menu: every raise must be selectable in the native client."""
-    o = frame.observation
-    hero = next(p for p in o.players if p.id == o.hero_id)
-    call = min(hero.stack, max(p.bet for p in o.players) - hero.bet)
-    passive = Action("check") if "check" in frame.legal else Action("fold")
-    result = [passive]
-    if not tracker.ledger_complete:
-        return tuple(result)
-    if "call" in frame.legal and 0 < call <= settings.max_action_chips:
-        result.append(Action("call"))
-    if "raise" in frame.legal and frame.raise_min and frame.raise_max:
-        limit = min(frame.raise_max, hero.stack, settings.max_action_chips)
-        available = sorted({frame.raise_min, frame.raise_max, *frame.raise_steps})
-        available = [v for v in available if frame.raise_min <= v <= limit and v > call]
-        if available:
-            sizes = {available[0]}
-            if frame.raise_max <= limit:
-                sizes.add(frame.raise_max)
-            for fraction in (.5, 1.):
-                target = call + fraction * (o.pot_total + call)
-                sizes.add(min(available, key=lambda v: abs(v - target)))
-            result.extend(Action("raise", value) for value in sorted(sizes))
-    return tuple(result)

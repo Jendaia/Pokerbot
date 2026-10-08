@@ -8,6 +8,7 @@ import numpy as np
 from ...core.cards import full_deck
 from ...core.hand_evaluator import _evaluate_unchecked
 from ..models import Decision
+from ..objectives import LABELS, score
 from ..opponents import OpponentProfile
 from ..pots import pot_payout
 from .betting import BettingState, native_actions
@@ -117,7 +118,7 @@ class MultiStreetPolicy:
                 if action.kind == "fold":
                     row.append(0.)
                 else:
-                    row.append(continuation(after, hands, board, hero, tracker, settings.max_action_chips,
+                    row.append(continuation(after, hands, board, hero, tracker, settings.action_cap,
                                             random.Random(roll_seed), features, roll_seed, style, cancelled) - cost)
             values.append(row)
         if cancelled():
@@ -129,21 +130,24 @@ class MultiStreetPolicy:
         matrix = np.array(values)
         means = matrix.mean(axis=0)
         errors = matrix.std(axis=0, ddof=1) / np.sqrt(count) if count > 1 else np.zeros(len(actions))
-        paired = matrix - matrix[:, :1]
+        utilities = matrix if settings.objective != "conservative" else matrix - np.minimum(matrix, 0) ** 2 / (2 * max(1., state.stacks[hero]))
+        paired = utilities - utilities[:, :1]
         paired_error = paired.std(axis=0, ddof=1) / np.sqrt(count) if count > 1 else np.zeros(len(actions))
         # Compare paired differences to the passive action; common deals remove
         # much of the showdown noise. This is a model-based estimate, not GTO.
-        scores = means - means[0] - 1.64 * paired_error
+        utility_means = utilities.mean(axis=0)
+        scores = score(utility_means - utility_means[0], paired_error, settings.objective)
         # A single noisy episode cannot justify spending chips.
         chosen = int(np.argmax(scores)) if count >= 24 else 0
         candidates = tuple({"action": a.kind, "amount": a.amount, "ev_chips": float(means[i]),
                             "standard_error": float(errors[i]), "paired_standard_error": float(paired_error[i]),
+                            "utility_chips": float(utility_means[i]),
                             "score": float(scores[i]), "probability": float(i == chosen)} for i, a in enumerate(actions))
         model_means = [matrix[np.array(styles) == style].mean(axis=0) for style in sorted(set(styles))]
         spread = float(np.ptp(np.array(model_means)[:, chosen]))
-        return Decision(actions[chosen], f"{actions[chosen].kind.title()} · future betting and counter-raises simulated · {count:,} shared deals",
+        return Decision(actions[chosen], f"{LABELS[settings.objective]} · {actions[chosen].kind.title()} · future betting and counter-raises simulated · {count:,} shared deals",
                         equity / count, state.call / max(1, state.pot + state.call), count,
                         time.monotonic() - started, candidates, "multi-street-rollout",
-                        {"model_spread_chips": spread, "joint_draw_attempts": attempts,
+                        {"objective": settings.objective, "model_spread_chips": spread, "joint_draw_attempts": attempts,
                          "history_actions": len(tracker.public_actions), "continuation": "three heuristic population models",
                          "limitations": "Estimated ranges and continuation policies; no equilibrium guarantee"})

@@ -10,10 +10,11 @@ from ..models.observation import TableObservation
 class BotSettings:
     samples: int = 3000
     think_seconds: float = 2.0
-    max_action_chips: int = 1000
-    stop_loss_chips: int = 2000
-    max_hands: int = 100
+    max_action_chips: int | None = None
+    stop_loss_chips: int | None = None
+    max_hands: int | None = None
     strategy: str = "hybrid"
+    objective: str = "profit"
 
     @classmethod
     def from_dict(cls, data: dict) -> "BotSettings":
@@ -22,14 +23,23 @@ class BotSettings:
         settings = cls(**data)
         if settings.strategy not in ("hybrid", "search", "rollout"):
             raise ValueError("strategy must be hybrid, search, or rollout")
+        if settings.objective not in ("profit", "balanced", "conservative"):
+            raise ValueError("objective must be profit, balanced, or conservative")
         for name, lower, upper in (("samples", 200, 20000), ("max_action_chips", 1, 10**9),
                                    ("stop_loss_chips", 1, 10**9), ("max_hands", 1, 10000)):
             value = getattr(settings, name)
+            if name != "samples" and value is None:
+                continue
             if type(value) is not int or not lower <= value <= upper:
                 raise ValueError(f"{name} must be an integer between {lower} and {upper}")
         if type(settings.think_seconds) not in (int, float) or not isfinite(settings.think_seconds) or not .2 <= settings.think_seconds <= 5:
             raise ValueError("think_seconds must be between 0.2 and 5")
         return settings
+
+    @property
+    def action_cap(self) -> float:
+        """No user cap still respects the stack and the client's legal bounds."""
+        return float("inf") if self.max_action_chips is None else self.max_action_chips
 
     def as_dict(self) -> dict:
         return asdict(self)

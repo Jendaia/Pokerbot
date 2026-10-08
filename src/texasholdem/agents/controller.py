@@ -6,6 +6,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
+import logging
 from pathlib import Path
 import threading
 import time
@@ -96,6 +97,24 @@ class BotController:
             self.generation += 1
             self.manual = None
             self._status("stopped", message)
+        self.wake.set()
+        return self.snapshot()
+
+    def configure(self, settings: dict, *, expected_generation: int):
+        """Change planning settings without restarting a stopped bot or its ledger."""
+        with self.lock:
+            if type(expected_generation) is not int or expected_generation != self.generation:
+                raise ValueError("The controller changed; refresh before applying settings")
+            if self.manual or self.payload["status"] in ("acting", "waiting_ack"):
+                raise ValueError("Wait for the pending action to finish before applying settings")
+            if not isinstance(settings, dict):
+                raise ValueError("Send a settings object")
+            chosen = BotSettings.from_dict({**self.settings.as_dict(), **settings})
+            self.settings = chosen
+            self.generation += 1  # Cancel any computation using the old objective.
+            self.payload["settings"] = chosen.as_dict()
+            self.payload["decision"] = None
+            self._status("waiting" if self.enabled else "stopped", "Settings applied · autoplay " + ("active" if self.enabled else "stopped"))
         self.wake.set()
         return self.snapshot()
 
@@ -240,10 +259,10 @@ class BotController:
                                 self.hands.add((observation.table_id, frame.hand_number))
                             net = (hero.stack + hero.bet + tracker.committed.get(hero.id, 0) - self.baseline) if hero and self.baseline is not None else None
                             self.payload["session"].update(hands=len(self.hands), net_chips=net)
-                            if len(self.hands) > settings.max_hands:
+                            if settings.max_hands is not None and len(self.hands) > settings.max_hands:
                                 self.stop("The configured hand limit was reached")
                                 continue
-                            if net is not None and observation.street == "pre-flop" and net <= -settings.stop_loss_chips:
+                            if settings.stop_loss_chips is not None and net is not None and observation.street == "pre-flop" and net <= -settings.stop_loss_chips:
                                 self.stop("The configured session loss limit was reached")
                                 continue
                             if hero and hero.stack == 0 and not observation.game_in_progress:
@@ -319,6 +338,7 @@ class BotController:
                     else:
                         self.stopped.wait(.1)
                 except Exception as error:
+                    logging.exception("Unexpected autoplay failure during %s", operation)
                     self.stop(f"Autoplay failed: {type(error).__name__}: {error}")
                     self.stopped.wait(.5)
         finally:

@@ -79,7 +79,7 @@ def opponent_action(state, hand, board, style, rng):
     return rng.choice(raises) if raises and rng.random() < .4 else passive
 
 
-def arena_hand(strategy, seed, number, players, style, samples, seconds):
+def arena_hand(strategy, seed, number, players, style, samples, seconds, objective="profit"):
     rng = random.Random(seed * 1000003 + number)
     deck = list(full_deck()); rng.shuffle(deck)
     holes = [tuple(deck[2*i:2*i+2]) for i in range(players)]
@@ -94,7 +94,7 @@ def arena_hand(strategy, seed, number, players, style, samples, seconds):
     tracker = HandTracker()
     tracker.observe(observation(state, holes, board, number), number)
     policy = HybridPolicy()
-    settings = BotSettings(samples=samples, think_seconds=seconds, max_action_chips=1000, strategy=strategy)
+    settings = BotSettings(samples=samples, think_seconds=seconds, strategy=strategy, objective=objective)
     decisions, elapsed = 0, 0.
     for turn in range(256):
         if state.terminal:
@@ -121,7 +121,7 @@ def arena_hand(strategy, seed, number, players, style, samples, seconds):
     raise ValueError("Arena hand did not terminate")
 
 
-def arena_benchmark(hands=12, seeds=(11, 29, 47), players=3, samples=200, seconds=.2, candidate="hybrid"):
+def arena_benchmark(hands=12, seeds=(11, 29, 47), players=3, samples=200, seconds=.2, candidate="hybrid", objective="profit"):
     rows = []
     start = time.monotonic()
     for seed in seeds:
@@ -131,7 +131,7 @@ def arena_benchmark(hands=12, seeds=(11, 29, 47), players=3, samples=200, second
             style = ("station", "tight", "aggressive")[(number // players) % 3]
             result = {}
             for policy in ("rollout", candidate):
-                value, decisions, elapsed = arena_hand(policy, seed, number, players, style, samples, seconds)
+                value, decisions, elapsed = arena_hand(policy, seed, number, players, style, samples, seconds, objective)
                 result[policy] = {"bb": value, "decisions": decisions, "decision_seconds": elapsed}
             rows.append({"seed": seed, "hand": number, "opponent": style, **result,
                          "difference_bb": result[candidate]["bb"] - result["rollout"]["bb"]})
@@ -141,7 +141,7 @@ def arena_benchmark(hands=12, seeds=(11, 29, 47), players=3, samples=200, second
     # Report raw paired outcomes and SE; no significance claim from a short
     # smoke match or dependent hands sharing an opponent model.
     se = statistics.stdev(diffs) / sqrt(len(diffs)) if len(diffs) > 1 else None
-    return {"benchmark": "paired-scripted-arena", "version": 2, "players": players, "candidate": candidate,
+    return {"benchmark": "paired-scripted-arena", "version": 3, "players": players, "candidate": candidate, "objective": objective,
             "hands_per_policy": len(rows), "samples": samples, "seconds_per_decision": seconds,
             "paired_mean_bb_per_hand": mean, "paired_standard_error": se,
             "total_seconds": time.monotonic() - start, "results": rows,
@@ -157,7 +157,8 @@ def main(argv=None):
     parser.add_argument("--players", type=int, choices=range(2, 10), default=3)
     parser.add_argument("--samples", type=int, default=200)
     parser.add_argument("--seconds", type=float, default=.2)
-    parser.add_argument("--strategy", choices=("hybrid", "search"), default="hybrid", help="candidate to compare against the original rollout")
+    parser.add_argument("--strategy", choices=("hybrid", "search"), default="hybrid", help="candidate to compare against range rollout with the same objective")
+    parser.add_argument("--objective", choices=("profit", "balanced", "conservative"), default="profit")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
     try:
@@ -165,7 +166,7 @@ def main(argv=None):
             raise ValueError("iterations and hands must be positive")
         BotSettings.from_dict({"samples": args.samples, "think_seconds": args.seconds})
         seeds = tuple(int(s) for s in args.seeds.split(","))
-        result = river_benchmark(args.iterations) if args.mode == "river" else arena_benchmark(args.hands, seeds, args.players, args.samples, args.seconds, args.strategy)
+        result = river_benchmark(args.iterations) if args.mode == "river" else arena_benchmark(args.hands, seeds, args.players, args.samples, args.seconds, args.strategy, args.objective)
     except ValueError as error:
         parser.error(str(error))
     text = json.dumps(result, indent=2, allow_nan=False)

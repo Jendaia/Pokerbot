@@ -60,6 +60,31 @@ class InputTests(unittest.TestCase):
             adapter.perform(Action("raise", 1001), controls.frame)
         self.assertEqual(clicks, [])
 
+    def test_raise_panel_closing_mid_selection_cancels_without_confirmation(self):
+        controls, clicks = FakeControls(), []
+        controls.frame = replace(controls.frame, raise_value=175, raise_confirm=(50, 50, 20, 20),
+                                 raise_increase=(10, 10, 20, 20), raise_steps=(175, 200, 1000))
+        def click(_, rect, canvas, guard):
+            guard(); clicks.append(rect)
+            controls.frame = replace(controls.frame, raise_open=False, raise_value=None,
+                                     raise_min=None, raise_max=None, raise_confirm=None)
+        adapter = PokeristInput(controls, type("Mouse", (), {"click": click})())
+        with self.assertRaisesRegex(ActionCancelled, "panel closed"):
+            adapter.perform(Action("raise", 200), controls.frame)
+        self.assertEqual(clicks, [(10, 10, 20, 20)])
+
+    def test_raise_selector_guard_rechecks_panel_before_mouse_down(self):
+        controls, clicks = FakeControls(), []
+        controls.frame = replace(controls.frame, raise_value=175, raise_confirm=(50, 50, 20, 20),
+                                 raise_increase=(10, 10, 20, 20))
+        def click(_, rect, canvas, guard):
+            controls.frame = replace(controls.frame, raise_open=False, raise_value=None)
+            guard(); clicks.append(rect)
+        adapter = PokeristInput(controls, type("Mouse", (), {"click": click})())
+        with self.assertRaises(ActionCancelled):
+            adapter.perform(Action("raise", 200), controls.frame)
+        self.assertEqual(clicks, [])
+
     def test_raise_panel_is_dismissed_before_calling_and_permission_cache_expires(self):
         controls, clicks = FakeControls(), []
         before = replace(controls.frame, raise_open=False)
@@ -152,6 +177,60 @@ class ControllerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             bot.start(expected_generation=generation)
         self.assertFalse(bot.snapshot()["enabled"])
+
+    def test_settings_change_preserves_session_and_does_not_override_stop(self):
+        bot, _, _, _ = self.make_controller()
+        bot.start()
+        bot.actions = 9
+        bot.hands = {(1, 1), (1, 2)}
+        bot.baseline, bot.bound_table = 10000, 1
+        session, old_generation = bot.session_id, bot.generation
+        result = bot.configure({"objective": "conservative", "max_action_chips": None}, expected_generation=old_generation)
+        self.assertTrue(result["enabled"])
+        self.assertTrue(bot._cancelled(old_generation))
+        self.assertEqual((bot.actions, len(bot.hands), bot.baseline, bot.bound_table, bot.session_id), (9, 2, 10000, 1, session))
+        generation = bot.generation
+        bot.stop()
+        with self.assertRaises(ValueError):
+            bot.configure({"objective": "profit"}, expected_generation=generation)
+        result = bot.configure({"objective": "profit"}, expected_generation=bot.generation)
+        self.assertFalse(result["enabled"])
+        self.assertEqual(bot.settings.objective, "profit")
+
+    def test_unlimited_session_continues_past_old_hand_and_loss_limits(self):
+        bot, controls, calls, event = self.make_controller()
+        controls.frame = replace(controls.frame, observation=replace(controls.frame.observation, board=()))
+        bot.start()
+        bot.bound_table = controls.frame.observation.table_id
+        bot.baseline = 1_000_000
+        bot.hands = {(bot.bound_table, i) for i in range(101)}
+        bot.start_worker()
+        try:
+            self.assertTrue(event.wait(2))
+            self.assertTrue(bot.snapshot()["enabled"])
+            self.assertEqual(len(calls), 1)
+            self.assertLess(bot.snapshot()["session"]["net_chips"], -2000)
+        finally:
+            bot.close()
+
+    def test_optional_session_caps_still_stop_before_spending(self):
+        for settings, message in (({"max_hands": 1}, "hand limit"), ({"stop_loss_chips": 100}, "loss limit")):
+            bot, controls, calls, event = self.make_controller()
+            controls.frame = replace(controls.frame, observation=replace(controls.frame.observation, board=()))
+            bot.start(settings)
+            bot.bound_table = controls.frame.observation.table_id
+            bot.baseline = 1_000_000
+            bot.hands = {(bot.bound_table, 1), (bot.bound_table, 2)}
+            bot.start_worker()
+            try:
+                deadline = time.monotonic() + 2
+                while bot.snapshot()["enabled"] and time.monotonic() < deadline:
+                    time.sleep(.01)
+                self.assertFalse(bot.snapshot()["enabled"])
+                self.assertIn(message, bot.snapshot()["message"])
+                self.assertEqual(calls, [])
+            finally:
+                bot.close()
 
     def test_opponent_turn_change_or_auto_fold_does_not_acknowledge_a_call(self):
         old = frame()

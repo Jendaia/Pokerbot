@@ -110,26 +110,29 @@ class PokeristInput:
         # Pokerist's slider is nonlinear and rounds to native bet steps.
         # Use its own +/- controls and verify the exact amount before confirm.
         deadline, steps = time.monotonic() + 4, 0
+        self._require_raise_value(current)
         if current.raise_steps and current.raise_all_in and current.raise_value != action.amount:
             values = current.raise_steps
             current_index = min(range(len(values)), key=lambda i: abs(values[i] - current.raise_value))
             target_index = values.index(action.amount)
             if len(values) - 1 - target_index + 1 < abs(target_index - current_index):
-                self.click(current.raise_all_in, current, cancelled)
+                self._select_raise_control("raise_all_in", current, cancelled)
                 time.sleep(.055)
                 current = self._fresh(frame, cancelled)
+                self._require_raise_value(current)
         while current.raise_value != action.amount:
             if time.monotonic() >= deadline or steps >= 48:
                 raise ValueError("Pokerist could not select the exact requested raise")
             previous = current.raise_value
             if action.amount == current.raise_max and current.raise_all_in:
-                rect = current.raise_all_in
+                control = "raise_all_in"
             else:
-                rect = current.raise_increase if previous < action.amount else current.raise_decrease
-            self.click(rect, current, cancelled)
+                control = "raise_increase" if previous < action.amount else "raise_decrease"
+            self._select_raise_control(control, current, cancelled)
             steps += 1
             time.sleep(.055)
             current = self._fresh(frame, cancelled)
+            self._require_raise_value(current)
             if current.raise_value == previous:
                 raise ValueError("Pokerist did not update the raise amount")
             if (previous < action.amount < current.raise_value) or (current.raise_value < action.amount < previous):
@@ -141,3 +144,21 @@ class PokeristInput:
                 raise ActionCancelled("Raise controls changed before confirmation")
         self.mouse.click(current.raise_confirm, current.canvas, guard)
         return {"action": "raise", "amount": action.amount}
+
+    @staticmethod
+    def _require_raise_value(frame):
+        if not frame.raise_open or frame.raise_value is None or not frame.raise_confirm:
+            # The UI can close without a change in the betting context (e.g.
+            # an outside click). Nothing has been confirmed: discard/replan.
+            raise ActionCancelled("Raise panel closed during selection; decision discarded")
+
+    def _select_raise_control(self, field, frame, cancelled):
+        rect = getattr(frame, field)
+        if not rect:
+            raise ValueError("Pokerist raise selector is unavailable")
+        def guard():
+            latest = self._fresh(frame, cancelled)
+            self._require_raise_value(latest)
+            if getattr(latest, field) != rect or latest.raise_value != frame.raise_value:
+                raise ActionCancelled("Raise selection changed before input")
+        self.mouse.click(rect, frame.canvas, guard)

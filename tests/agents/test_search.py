@@ -141,7 +141,7 @@ class RiverTests(unittest.TestCase):
 
     def test_nuts_call_and_exact_outcomes(self):
         f, t = valid_frame()
-        d = HybridPolicy().decide(f, t, BotSettings(samples=200, think_seconds=1, max_action_chips=100), seed=7)
+        d = HybridPolicy().decide(f, t, BotSettings(samples=200, think_seconds=1, max_action_chips=100, objective="balanced"), seed=7)
         self.assertEqual(d.method, "river-cfr+")
         self.assertEqual(d.action.kind, "call")
         self.assertEqual(d.equity, 1.)
