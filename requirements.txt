@@ -1,0 +1,3 @@
+# Run from the repository root: python -m pip install -r requirements.txt
+# Installs the project, its commands, dashboard, and native reader dependencies.
+-e .[native]

@@ -11,10 +11,16 @@ Pokerist analyzer uses NumPy and reads a locally running Linux/Steam Proton clie
 ## Open the visual dashboard
 
 ```bash
-cd /home/jeremias/texasholdembot
-.venv/bin/python -m pip install -e '.[native]'
+git clone https://github.com/Jendaia/Pokerbot.git
+cd Pokerbot
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
 .venv/bin/poker-dashboard
 ```
+
+For an existing checkout, run the installation command from its root directory.
+`requirements.txt` installs the project and its NumPy dependency, including all
+three commands. Live Pokerist reading requires Linux with the Steam/Proton client.
 
 This starts a local website at **http://127.0.0.1:8765** and opens it in your
 browser. Keep the terminal running; Ctrl+C stops it. The dashboard shows the
@@ -49,12 +55,10 @@ no frontend build, hosted account, or external asset service is needed. See
 
 ## Read the live Pokerist table
 
-Start Pokerist and enter a table as a player or spectator, then run:
+After installation, start Pokerist and enter a table as a player or spectator,
+then run these commands from the repository directory:
 
 ```bash
-cd /home/jeremias/texasholdembot
-.venv/bin/python -m pip install -e '.[native]'
-
 # Current table, players, stacks, bets, acting seat, dealer, pot, and board.
 .venv/bin/poker-analyze
 
@@ -96,7 +100,6 @@ field meanings, snapshot consistency, limitations, and the discovered pointer ch
 From the project directory, without installing:
 
 ```bash
-cd /home/jeremias/texasholdembot
 PYTHONPATH=src python3 -m texasholdem --hero "As Ah" --board "Ks 7d 2c" --seed 42
 ```
 
